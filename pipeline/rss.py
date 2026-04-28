@@ -1,20 +1,23 @@
 from email.utils import formatdate
 from uuid import uuid5, NAMESPACE_URL
+from urllib.parse import quote
 from lxml import etree
 from pathlib import Path
 from datetime import datetime, timedelta
 import os
-import utils
-import config
+from newzyx import config, utils, workspace
 
 PODCAST_TITLE = "Daily News Podcast for Kids - Newzyx"
 PODCAST_DESCRIPTION = "Daily news podcast designed for kids aged 10-16, making current events fun, educational, and engaging."
 PODCAST_AUTHOR = "Ryan G"
 PODCAST_LANGUAGE = "en-us"
 PODCAST_CATEGORY = "Kids & Family"
-PODCAST_EMAIL = "maxrandom@gmail.com"
-PODCAST_WEBSITE = "newzyx.com"
-CLOUDFRONT_URL = config.WEBSITE_URL
+PODCAST_EMAIL = "ryanngupta@gmail.com"
+# Show artwork (must exist under website/ and be uploaded to S3 with the site)
+PODCAST_ARTWORK_BASENAME = "NewzyxV2-Podcast.jpg"
+PODCAST_PHONE = "312-709-5982"
+PODCAST_WEBSITE = "https://newzyx.com"
+CLOUDFRONT_URL = config.WEBSITE_URL.rstrip("/")
 
 ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 SYNDICATION_NS = "http://purl.org/rss/1.0/modules/syndication/"
@@ -54,12 +57,18 @@ def create_feed(feed_path="website/feed.xml"):
     etree.SubElement(ch, f"{{{ITUNES_NS}}}summary").text = PODCAST_DESCRIPTION
     etree.SubElement(ch, f"{{{ITUNES_NS}}}explicit").text = "no"
     etree.SubElement(ch, f"{{{ITUNES_NS}}}type").text = "episodic"
-    etree.SubElement(ch, f"{{{ITUNES_NS}}}image", href=f"{CLOUDFRONT_URL}/fmt_artwork.jpg")
+    _art = quote(PODCAST_ARTWORK_BASENAME, safe="")
+    etree.SubElement(
+        ch, f"{{{ITUNES_NS}}}image", href=f"{CLOUDFRONT_URL}/{_art}"
+    )
     cat = etree.SubElement(ch, f"{{{ITUNES_NS}}}category")
     cat.set("text", PODCAST_CATEGORY)
     owner = etree.SubElement(ch, f"{{{ITUNES_NS}}}owner")
     etree.SubElement(owner, f"{{{ITUNES_NS}}}name").text = PODCAST_AUTHOR
     etree.SubElement(owner, f"{{{ITUNES_NS}}}email").text = PODCAST_EMAIL
+    etree.SubElement(ch, "managingEditor").text = (
+        f"{PODCAST_EMAIL} (phone: {PODCAST_PHONE})"
+    )
 
     tree = etree.ElementTree(rss)
     tree.write(str(feed_path), encoding="utf-8", xml_declaration=True, pretty_print=True)
@@ -126,8 +135,56 @@ def add_episode(feed_path="website/feed.xml", date_str=None, mp3_path=None,
     return mp3_s3_key
 
 
+def refresh_feed_channel_metadata(feed_path):
+    """Keep channel URLs in sync when merging with an existing feed."""
+    fp = Path(feed_path)
+    if not fp.exists():
+        return
+    tree = etree.parse(str(fp))
+    ch = tree.getroot().find("channel")
+    if ch is None:
+        return
+    im = ch.find(f"{{{ITUNES_NS}}}image")
+    if im is not None:
+        _art = quote(PODCAST_ARTWORK_BASENAME, safe="")
+        im.set("href", f"{CLOUDFRONT_URL}/{_art}")
+    lk = ch.find("link")
+    if lk is not None:
+        lk.text = PODCAST_WEBSITE
+    tree.write(
+        str(fp),
+        encoding="utf-8",
+        xml_declaration=True,
+        pretty_print=True,
+    )
+
+
+def incremental_append_current_episode(feed_path, mp3_abs_path, t=0):
+    """
+    Fetch canonical feed.xml from S3 if present, then append this episode only.
+    Suitable for ephemeral workspaces without a full local episodes/ history.
+    """
+    from pipeline import upload as upload_mod
+
+    fp = Path(feed_path)
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    ok = upload_mod.download_object_if_exists("feed.xml", str(fp))
+    if not ok or not fp.exists() or fp.stat().st_size == 0:
+        create_feed(str(fp))
+    refresh_feed_channel_metadata(str(fp))
+    episode_date = datetime.now() - timedelta(days=t)
+    date_str = utils.ymd(t)
+    add_episode(
+        feed_path=str(fp),
+        date_str=date_str,
+        mp3_path=mp3_abs_path,
+        episode_date=episode_date,
+        t=t,
+    )
+
+
 def update_all_episodes(feed_path="website/feed.xml", max_episodes=500):
-    episodes_dir = Path("website/episodes")
+    episodes_dir = Path(workspace.generated_website_dir()) / "episodes"
     if not episodes_dir.exists():
         print("  website/episodes/ directory not found")
         return
@@ -144,6 +201,8 @@ def update_all_episodes(feed_path="website/feed.xml", max_episodes=500):
 
     if not Path(feed_path).exists():
         create_feed(feed_path)
+    else:
+        refresh_feed_channel_metadata(feed_path)
 
     count = 0
     for ep_dir in ep_dirs[:max_episodes]:

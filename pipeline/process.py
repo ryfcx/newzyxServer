@@ -1,8 +1,7 @@
 import json
 import requests
 import time
-import utils
-import config
+from newzyx import config, utils
 from pipeline import db
 
 JSON_SCHEMA = {
@@ -105,8 +104,10 @@ def _validate_output(output):
     return True
 
 
-def process_content(num_per_topic=12):
-    rows = db.get_extracted(limit_per_topic=num_per_topic)
+def process_content(num_per_topic=12, only_news_date=None):
+    rows = db.get_extracted(
+        limit_per_topic=num_per_topic, only_news_date=only_news_date
+    )
     print(f"  {len(rows)} articles to process")
     processed = 0
 

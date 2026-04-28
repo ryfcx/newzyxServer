@@ -3,7 +3,8 @@ import mimetypes
 from botocore.exceptions import NoCredentialsError, ClientError
 import os
 import time
-import config
+from newzyx import config
+from newzyx import workspace
 
 
 def _get_client(service):
@@ -15,6 +16,24 @@ def _get_client(service):
     )
 
 
+def download_object_if_exists(s3_key, dest_path):
+    """
+    Download s3://bucket/s3_key to dest_path. Returns True if the object existed.
+    """
+    client = _get_client("s3")
+    parent = os.path.dirname(dest_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    try:
+        client.download_file(config.S3_BUCKET, s3_key, dest_path)
+        return True
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        if code in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise
+
+
 def upload_files(file_list):
     if not file_list:
         print("  No files to upload")
@@ -22,21 +41,29 @@ def upload_files(file_list):
 
     client = _get_client("s3")
     uploaded = []
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    web_dir = os.path.join(base_dir, "website")
+    project_root = os.path.dirname(os.path.dirname(__file__))
+    gen_web = os.path.abspath(workspace.generated_website_dir())
+    proj_web = os.path.abspath(workspace.project_website_dir())
+
+    def _under(root, path):
+        path = os.path.abspath(path)
+        root = os.path.abspath(root)
+        return path == root or path.startswith(root + os.sep)
 
     for fpath in file_list:
         if os.path.isabs(fpath):
             full_path = fpath
         else:
-            full_path = os.path.join(base_dir, fpath)
+            full_path = os.path.join(project_root, fpath)
 
         if not os.path.isfile(full_path):
             print(f"  Skip (not found): {fpath}")
             continue
 
-        if full_path.startswith(web_dir):
-            s3_key = os.path.relpath(full_path, web_dir)
+        if _under(gen_web, full_path):
+            s3_key = os.path.relpath(full_path, gen_web)
+        elif _under(proj_web, full_path):
+            s3_key = os.path.relpath(full_path, proj_web)
         else:
             s3_key = os.path.basename(fpath)
 

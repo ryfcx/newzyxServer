@@ -1,7 +1,12 @@
 import os
 from pathlib import Path
 
-_env_path = Path(__file__).parent / ".env"
+# Project root is parent of the newzyx/ package; .env lives at repo root
+_root = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = str(_root)
+# Optional: put DB on USB SSD, e.g. NEWZYX_DB_PATH=/mnt/ssd/newzyx.db
+DB_PATH = os.environ.get("NEWZYX_DB_PATH") or str(_root / "data" / "newzyx.db")
+_env_path = _root / ".env"
 if _env_path.exists():
     with open(_env_path) as f:
         for line in f:

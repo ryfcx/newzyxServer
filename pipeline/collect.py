@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from collections import defaultdict
 import ftfy
-import utils
+from newzyx import utils
 from pipeline import db
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
@@ -51,7 +51,11 @@ def _parse_date_from_url(url_parts, fmt_indices, fmt_str=None):
         return None
 
 
-def collect_urls():
+def collect_urls(only_news_date=None):
+    """
+    If only_news_date is YYYY-MM-DD, only enqueue URLs with that story date
+    (when the date is present in the link) so backfill aligns with a calendar day.
+    """
     db.init_db()
     candidates = []
 
@@ -153,6 +157,8 @@ def collect_urls():
         bad = utils.isBad(url + " " + title, 0)
         if bad:
             print(f"  Filtered: {title[:40]} ({bad})")
+            continue
+        if only_news_date and news_dt and news_dt != only_news_date:
             continue
         filtered.append((url, title, topic, source, news_dt))
 

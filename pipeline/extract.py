@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import time
 import random
-import utils
+from newzyx import utils
 from pipeline import db
 
 HEADERS = {
@@ -54,8 +54,8 @@ def _extract_single(url, timeout=15, max_chars=7000):
     return text, news_dt
 
 
-def process_urls():
-    rows = db.get_collected()
+def process_urls(only_news_date=None):
+    rows = db.get_collected(only_news_date=only_news_date)
     print(f"  {len(rows)} articles to extract")
     extracted = 0
 
@@ -73,6 +73,16 @@ def process_urls():
             if bad:
                 db.mark_invalid(aid, bad)
                 print(f"  Invalid content: {aid[:8]} ({bad})")
+                continue
+
+            if only_news_date and (not news_dt or news_dt != only_news_date):
+                db.mark_invalid(
+                    aid,
+                    f"story_date_mismatch: want {only_news_date!r} got {news_dt!r}",
+                )
+                print(
+                    f"  Skip: date for {aid[:8]} is {news_dt!r} (backfill for {only_news_date})"
+                )
                 continue
 
             db.mark_extracted(aid, text, news_dt)

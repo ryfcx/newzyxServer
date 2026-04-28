@@ -1,11 +1,10 @@
 import sqlite3
 import hashlib
 import os
-import csv
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "newzyx.db")
+from newzyx.config import DB_PATH
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
@@ -93,8 +92,18 @@ def insert_articles_batch(rows):
     return added
 
 
-def get_collected():
+def get_collected(only_news_date=None):
+    """
+    If only_news_date is set (YYYY-MM-DD), return collected rows for that story date
+    (known from URL) or with unknown date (NULL) so extract can set publication day.
+    """
     with _connect() as conn:
+        if only_news_date:
+            return conn.execute(
+                """SELECT id, url FROM articles WHERE state='collected' AND invalid_reason IS NULL
+                   AND (news_dt IS NULL OR news_dt = ?) ORDER BY collect_dt""",
+                (only_news_date,),
+            ).fetchall()
         return conn.execute(
             "SELECT id, url FROM articles WHERE state='collected' AND invalid_reason IS NULL"
         ).fetchall()
@@ -117,13 +126,21 @@ def mark_invalid(article_id, reason):
         )
 
 
-def get_extracted(limit_per_topic=12):
+def get_extracted(limit_per_topic=12, only_news_date=None):
     with _connect() as conn:
-        rows = conn.execute(
-            """SELECT id, url, title, topic, source, article FROM articles
-               WHERE state='extracted' AND invalid_reason IS NULL
-               ORDER BY collect_dt DESC"""
-        ).fetchall()
+        if only_news_date:
+            rows = conn.execute(
+                """SELECT id, url, title, topic, source, article FROM articles
+                   WHERE state='extracted' AND invalid_reason IS NULL AND news_dt = ?
+                   ORDER BY collect_dt DESC""",
+                (only_news_date,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT id, url, title, topic, source, article FROM articles
+                   WHERE state='extracted' AND invalid_reason IS NULL
+                   ORDER BY collect_dt DESC"""
+            ).fetchall()
     result = []
     topic_counts = {}
     for r in rows:
@@ -158,15 +175,47 @@ def get_publish_candidates(min_score=90, max_age_days=3):
         ).fetchall()
 
 
-def select_episode(min_score=90, max_age_days=3, target=6, min_articles=4):
-    """Pick episodes from high-scoring articles only. Widen lookback in days (still min_score) if needed."""
-    candidates = []
-    for days in (max_age_days, 5, 7, 10):
-        candidates = get_publish_candidates(min_score, days)
-        if len(candidates) >= min_articles:
-            break
-    if len(candidates) < min_articles:
-        return []
+def get_publish_candidates_for_date(news_date, min_score=90):
+    """Scored stories whose article publication day (news_dt) matches a calendar day."""
+    with _connect() as conn:
+        return conn.execute(
+            """SELECT id, url, title, topic, source, score, summary, pod_script,
+                      pod_question, pod_answer, news_dt, collect_dt
+               FROM articles
+               WHERE state='scored' AND invalid_reason IS NULL AND score >= ?
+                     AND news_dt = ?
+               ORDER BY score DESC, collect_dt DESC""",
+            (min_score, news_date),
+        ).fetchall()
+
+
+def select_episode(
+    min_score=90,
+    max_age_days=3,
+    target=6,
+    min_articles=4,
+    news_date=None,
+):
+    """
+    If news_date is a YYYY-MM-DD string, only articles with that news_dt (article date)
+    are used — for backdated episodes. Otherwise uses recent collect window as before.
+    """
+    if news_date:
+        candidates = []
+        for score_floor in (min_score, 85, 80):
+            candidates = get_publish_candidates_for_date(news_date, min_score=score_floor)
+            if len(candidates) >= min_articles:
+                break
+        if len(candidates) < min_articles:
+            return []
+    else:
+        candidates = []
+        for days in (max_age_days, 5, 7, 10):
+            candidates = get_publish_candidates(min_score, days)
+            if len(candidates) >= min_articles:
+                break
+        if len(candidates) < min_articles:
+            return []
 
     today = datetime.now().strftime("%Y-%m-%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -174,11 +223,12 @@ def select_episode(min_score=90, max_age_days=3, target=6, min_articles=4):
     scored = []
     for c in candidates:
         recency = 1.0
-        cdt = c["collect_dt"] or today
-        if cdt < yesterday:
-            recency = 0.7
-        elif cdt < today:
-            recency = 0.9
+        if not news_date:
+            cdt = c["collect_dt"] or today
+            if cdt < yesterday:
+                recency = 0.7
+            elif cdt < today:
+                recency = 0.9
         final = c["score"] * recency
         scored.append((final, c))
 
@@ -235,106 +285,3 @@ def get_stats():
             by_state[row["state"]] = row["cnt"]
         invalid = conn.execute("SELECT COUNT(*) FROM articles WHERE invalid_reason IS NOT NULL").fetchone()[0]
     return {"total": total, "by_state": by_state, "invalid": invalid}
-
-
-def migrate_from_csv(csv_path):
-    if not os.path.exists(csv_path):
-        print(f"CSV not found at {csv_path}, starting with empty database")
-        return 0
-
-    init_db()
-    imported = 0
-    skipped = 0
-
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-
-    with _connect() as conn:
-        for row in rows:
-            url = row.get("url", "").strip()
-            if not url:
-                skipped += 1
-                continue
-
-            aid = _url_hash(url)
-            title = row.get("title", "").strip()
-            if not title:
-                skipped += 1
-                continue
-
-            topic = row.get("topic", "").strip() or None
-            source = row.get("source", "").strip() or None
-
-            news_dt = _parse_csv_date(row.get("newsDt", ""))
-            collect_dt = _parse_csv_date(row.get("collectDt", "")) or datetime.now().strftime("%Y-%m-%d")
-            extract_dt = _parse_csv_date(row.get("extractDt", ""))
-            process_dt = _parse_csv_date(row.get("processDt", ""))
-            publish_dt = _parse_csv_date(row.get("publishDt", ""))
-
-            article = row.get("article", "").strip() or None
-            is_valid = row.get("isValid", "").strip()
-            invalid_reason = is_valid if is_valid else None
-
-            score_raw = row.get("score", "").strip()
-            score = None
-            if score_raw:
-                try:
-                    score = int(float(score_raw))
-                except (ValueError, TypeError):
-                    pass
-
-            summary = row.get("summary", "").strip() or None
-            pod_script = row.get("podScript", "").strip() or None
-            pod_question = row.get("podQuestion", "").strip() or None
-            pod_answer = row.get("podAnswer", "").strip() or None
-
-            if publish_dt:
-                state = "published"
-            elif score is not None:
-                state = "scored"
-            elif article:
-                state = "extracted"
-            else:
-                state = "collected"
-
-            try:
-                conn.execute(
-                    """INSERT OR IGNORE INTO articles
-                       (id, url, title, topic, source, state, news_dt, collect_dt,
-                        extract_dt, process_dt, publish_dt, article, score,
-                        summary, pod_script, pod_question, pod_answer, invalid_reason)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (aid, url, title, topic, source, state, news_dt, collect_dt,
-                     extract_dt, process_dt, publish_dt, article, score,
-                     summary, pod_script, pod_question, pod_answer, invalid_reason),
-                )
-                imported += 1
-            except sqlite3.IntegrityError:
-                skipped += 1
-
-    print(f"Migration complete: {imported} imported, {skipped} skipped")
-    return imported
-
-
-def _parse_csv_date(val):
-    if not val:
-        return None
-    val = val.strip()
-    if val in ("", "nan", "NaN", "None"):
-        return None
-    try:
-        clean = val.replace(".0", "")
-        if len(clean) == 8 and clean.isdigit():
-            return f"{clean[:4]}-{clean[4:6]}-{clean[6:8]}"
-        return None
-    except Exception:
-        return None
-
-
-if __name__ == "__main__":
-    init_db()
-    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "list.csv")
-    migrate_from_csv(csv_path)
-    stats = get_stats()
-    print(f"Database stats: {stats}")

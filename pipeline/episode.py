@@ -2,15 +2,28 @@ import json
 import shutil
 import os
 from openai import OpenAI
-import utils
-import config
+from newzyx import config, utils, workspace
 from pipeline import db
 
 
-def select_articles():
-    ep = db.select_episode(min_score=90, max_age_days=3, target=6, min_articles=4)
+def select_articles(news_date=None):
+    ep = db.select_episode(
+        min_score=90,
+        max_age_days=3,
+        target=6,
+        min_articles=4,
+        news_date=news_date,
+    )
     if not ep:
-        print("  Not enough articles scoring 90+ in the last few days — collect more or rerun process")
+        if news_date:
+            print(
+                f"  Not enough articles scoring 80+ with news date {news_date} — "
+                "check collect sources for that day or run again with more variety"
+            )
+        else:
+            print(
+                "  Not enough articles scoring 90+ in the last few days — collect more or rerun process"
+            )
         return []
     print(f"  Selected {len(ep)} articles for episode:")
     for a in ep:
@@ -71,9 +84,8 @@ def create_script(fname, ep, t=0):
     with open(fname, "w", encoding="utf-8") as f:
         f.write(script)
 
-    base = os.path.dirname(os.path.dirname(__file__))
     date_str = utils.ymd(t)
-    ep_dir = os.path.join(base, "website", "episodes", date_str)
+    ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
     os.makedirs(ep_dir, exist_ok=True)
     shutil.copy(fname, os.path.join(ep_dir, "script.txt"))
 
@@ -81,9 +93,8 @@ def create_script(fname, ep, t=0):
 
 
 def create_site(ep, t=0):
-    base = os.path.dirname(os.path.dirname(__file__))
-    web_dir = os.path.join(base, "website")
-    template_path = os.path.join(web_dir, "template.html")
+    web_dir = workspace.generated_website_dir()
+    template_path = os.path.join(workspace.project_website_dir(), "template.html")
 
     articles_json = json.dumps(
         [

@@ -3,15 +3,13 @@ from elevenlabs.types import VoiceSettings
 from datetime import datetime, timedelta
 import shutil
 import os
-import utils
-import config
+from newzyx import config, utils, workspace
 
 
 def tts(fname, t=0):
-    base = os.path.dirname(os.path.dirname(__file__))
     date_str = (datetime.now() - timedelta(days=t)).strftime("%Y-%m-%d")
 
-    ep_dir = os.path.join(base, "website", "episodes", date_str)
+    ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
     os.makedirs(ep_dir, exist_ok=True)
 
     dated_mp3 = os.path.join(ep_dir, date_str + ".mp3")
@@ -31,7 +29,7 @@ def tts(fname, t=0):
     generated = [dated_mp3]
 
     if t == 0:
-        today_mp3 = os.path.join(base, "website", "today.mp3")
+        today_mp3 = os.path.join(workspace.generated_website_dir(), "today.mp3")
         shutil.copy(dated_mp3, today_mp3)
         generated.append(today_mp3)
 
