@@ -38,8 +38,8 @@ ELEVENLABS_API_URL = os.environ.get("ELEVENLABS_API_URL", "https://api.elevenlab
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
 ELEVENLABS_MODEL_ID = os.environ.get("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
 ELEVENLABS_MODEL_ID_DIALOGUE = os.environ.get("ELEVENLABS_MODEL_ID_DIALOGUE", "eleven_v3")
-ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "cgSgspJ2msm6clMCkdW9")
-ELEVENLABS_VOICE_ID2 = os.environ.get("ELEVENLABS_VOICE_ID2", "RXtWW6etvimS8QJ5nhVk")
+ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "6yesjON9QKSLuPBdVCoB")
+ELEVENLABS_VOICE_ID2 = os.environ.get("ELEVENLABS_VOICE_ID2", "IMcnLoWVvO9c3ycsIvkh")
 
 S3_BUCKET = os.environ.get("S3_BUCKET", "kidsnewsfeed")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")

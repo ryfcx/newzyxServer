@@ -8,10 +8,18 @@ import os
 from newzyx import config, utils, workspace
 
 PODCAST_TITLE = "Daily News Podcast for Kids - Newzyx"
-PODCAST_DESCRIPTION = "Daily news podcast designed for kids aged 10-16, making current events fun, educational, and engaging."
+PODCAST_DESCRIPTION = (
+    "Looking for a fun way to stay on top of what's happening in the world? "
+    "Newzyx is the ultimate daily news podcast designed just for teens and tweens aged 10–16! 🔥\n\n"
+    "In quick, bite-sized episodes (around 5–7 minutes each!), host Ryan G breaks down the most "
+    "relevant, up-to-date news and current events. No boring lectures here—just the facts you "
+    "actually care about, made engaging, educational, and easy to understand. 🌍⚡\n\n"
+    "Whether you're listening on your morning commute to school or winding down at the end of "
+    "the day, Newzyx keeps you informed and ahead of the game. 🎧📚"
+)
 PODCAST_AUTHOR = "Ryan G"
 PODCAST_LANGUAGE = "en-us"
-PODCAST_CATEGORY = "Kids & Family"
+PODCAST_CATEGORY = "Education for Kids"
 PODCAST_EMAIL = "ryanngupta@gmail.com"
 # Show artwork (must exist under website/ and be uploaded to S3 with the site)
 PODCAST_ARTWORK_BASENAME = "NewzyxV2-Podcast.jpg"
@@ -19,23 +27,15 @@ PODCAST_PHONE = "312-709-5982"
 PODCAST_WEBSITE = "https://newzyx.com"
 CLOUDFRONT_URL = config.WEBSITE_URL.rstrip("/")
 
+# Shown in RSS/itunes:duration only (does not change TTS or MP3 length).
+RSS_EPISODE_DURATION = "00:06:00"
+
 ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 SYNDICATION_NS = "http://purl.org/rss/1.0/modules/syndication/"
 
 
 def _file_size(filepath):
     return os.path.getsize(filepath) if os.path.exists(filepath) else 0
-
-
-def _duration_estimate(filepath):
-    try:
-        from mutagen.mp3 import MP3
-        audio = MP3(filepath)
-        s = int(audio.info.length)
-        return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
-    except Exception:
-        mb = _file_size(filepath) / (1024 * 1024)
-        return f"00:{int(mb):02d}:00"
 
 
 def create_feed(feed_path="website/feed.xml"):
@@ -101,7 +101,7 @@ def add_episode(feed_path="website/feed.xml", date_str=None, mp3_path=None,
     length = _file_size(mp3_path)
     if length == 0:
         length = 10 * 1024 * 1024
-    duration = _duration_estimate(mp3_path)
+    duration = RSS_EPISODE_DURATION
     guid_str = str(uuid5(NAMESPACE_URL, episode_url))
 
     for item in channel.findall("item"):
@@ -136,7 +136,7 @@ def add_episode(feed_path="website/feed.xml", date_str=None, mp3_path=None,
 
 
 def refresh_feed_channel_metadata(feed_path):
-    """Keep channel URLs in sync when merging with an existing feed."""
+    """Keep channel metadata in sync when merging with an existing feed."""
     fp = Path(feed_path)
     if not fp.exists():
         return
@@ -144,6 +144,16 @@ def refresh_feed_channel_metadata(feed_path):
     ch = tree.getroot().find("channel")
     if ch is None:
         return
+    desc = ch.find("description")
+    if desc is not None:
+        desc.text = PODCAST_DESCRIPTION
+    summary = ch.find(f"{{{ITUNES_NS}}}summary")
+    if summary is not None:
+        summary.text = PODCAST_DESCRIPTION
+    for old_cat in ch.findall(f"{{{ITUNES_NS}}}category"):
+        ch.remove(old_cat)
+    cat = etree.SubElement(ch, f"{{{ITUNES_NS}}}category")
+    cat.set("text", PODCAST_CATEGORY)
     im = ch.find(f"{{{ITUNES_NS}}}image")
     if im is not None:
         _art = quote(PODCAST_ARTWORK_BASENAME, safe="")
