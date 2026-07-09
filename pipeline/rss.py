@@ -11,7 +11,7 @@ PODCAST_TITLE = "Daily News Podcast for Kids - Newzyx"
 PODCAST_DESCRIPTION = (
     "Looking for a fun way to stay on top of what's happening in the world? "
     "Newzyx is the ultimate daily news podcast designed just for teens and tweens aged 10–16! 🔥\n\n"
-    "In quick, bite-sized episodes (around 5–7 minutes each!), host Ryan G breaks down the most "
+    "In quick, bite-sized episodes (around 5–7 minutes each!), this podcast breaks down the most "
     "relevant, up-to-date news and current events. No boring lectures here—just the facts you "
     "actually care about, made engaging, educational, and easy to understand. 🌍⚡\n\n"
     "Whether you're listening on your morning commute to school or winding down at the end of "
@@ -19,7 +19,9 @@ PODCAST_DESCRIPTION = (
 )
 PODCAST_AUTHOR = "Ryan G"
 PODCAST_LANGUAGE = "en-us"
-PODCAST_CATEGORY = "Education for Kids"
+# Apple Podcasts: "Education for Kids" is a subcategory under "Kids & Family".
+PODCAST_CATEGORY = "Kids & Family"
+PODCAST_SUBCATEGORY = "Education for Kids"
 PODCAST_EMAIL = "ryanngupta@gmail.com"
 # Show artwork (must exist under website/ and be uploaded to S3 with the site)
 PODCAST_ARTWORK_BASENAME = "NewzyxV2-Podcast.jpg"
@@ -36,6 +38,16 @@ SYNDICATION_NS = "http://purl.org/rss/1.0/modules/syndication/"
 
 def _file_size(filepath):
     return os.path.getsize(filepath) if os.path.exists(filepath) else 0
+
+
+def _set_itunes_categories(channel):
+    """Apple-valid nested category: Kids & Family > Education for Kids."""
+    for old in channel.findall(f"{{{ITUNES_NS}}}category"):
+        channel.remove(old)
+    cat = etree.SubElement(channel, f"{{{ITUNES_NS}}}category")
+    cat.set("text", PODCAST_CATEGORY)
+    sub = etree.SubElement(cat, f"{{{ITUNES_NS}}}category")
+    sub.set("text", PODCAST_SUBCATEGORY)
 
 
 def create_feed(feed_path="website/feed.xml"):
@@ -61,8 +73,7 @@ def create_feed(feed_path="website/feed.xml"):
     etree.SubElement(
         ch, f"{{{ITUNES_NS}}}image", href=f"{CLOUDFRONT_URL}/{_art}"
     )
-    cat = etree.SubElement(ch, f"{{{ITUNES_NS}}}category")
-    cat.set("text", PODCAST_CATEGORY)
+    _set_itunes_categories(ch)
     owner = etree.SubElement(ch, f"{{{ITUNES_NS}}}owner")
     etree.SubElement(owner, f"{{{ITUNES_NS}}}name").text = PODCAST_AUTHOR
     etree.SubElement(owner, f"{{{ITUNES_NS}}}email").text = PODCAST_EMAIL
@@ -150,10 +161,7 @@ def refresh_feed_channel_metadata(feed_path):
     summary = ch.find(f"{{{ITUNES_NS}}}summary")
     if summary is not None:
         summary.text = PODCAST_DESCRIPTION
-    for old_cat in ch.findall(f"{{{ITUNES_NS}}}category"):
-        ch.remove(old_cat)
-    cat = etree.SubElement(ch, f"{{{ITUNES_NS}}}category")
-    cat.set("text", PODCAST_CATEGORY)
+    _set_itunes_categories(ch)
     im = ch.find(f"{{{ITUNES_NS}}}image")
     if im is not None:
         _art = quote(PODCAST_ARTWORK_BASENAME, safe="")
