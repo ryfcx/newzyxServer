@@ -9,7 +9,7 @@ from pipeline import db
 
 def build_episode_description(articles):
     """RSS/Apple episode blurb listing the stories covered."""
-    titles = [a["title"].strip() for a in articles if a.get("title")]
+    titles = [a["title"].strip() for a in articles if a["title"]]
     if not titles:
         return "Daily news for kids."
     if len(titles) == 1:
