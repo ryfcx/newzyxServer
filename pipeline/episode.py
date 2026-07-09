@@ -1,9 +1,40 @@
 import json
+import re
 import shutil
 import os
 from openai import OpenAI
 from newzyx import config, utils, workspace
 from pipeline import db
+
+
+def build_episode_description(articles):
+    """RSS/Apple episode blurb listing the stories covered."""
+    titles = [a["title"].strip() for a in articles if a.get("title")]
+    if not titles:
+        return "Daily news for kids."
+    if len(titles) == 1:
+        return f"In this episode: {titles[0]}"
+    return "In this episode: " + "; ".join(titles)
+
+
+def load_episode_articles(ep_dir, date_str):
+    """Read article titles from a generated episode page (for RSS backfill)."""
+    html_path = os.path.join(ep_dir, f"{date_str}.html")
+    if not os.path.exists(html_path):
+        return []
+    with open(html_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    match = re.search(
+        r'<script id="articleData" type="application/json">(.*?)</script>',
+        content,
+        re.DOTALL,
+    )
+    if not match:
+        return []
+    try:
+        return json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return []
 
 
 def select_articles(news_date=None):

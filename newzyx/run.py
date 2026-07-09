@@ -74,6 +74,7 @@ def run_daily_pipeline(t: int = 0) -> int:
                 feed_path,
                 audio_files[0],
                 t=t,
+                articles=ep,
             ),
         )
 
