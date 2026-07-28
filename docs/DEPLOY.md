@@ -5,6 +5,7 @@ This guide is for the **server version** of Newzyx V2: run the pipeline on a **L
 ## Requirements
 
 - **Python 3.10+**
+- **`ffmpeg`** installed on the system (used by `pydub` to stitch the news and quiz audio segments — install with `sudo apt install ffmpeg` on Debian/Raspberry Pi OS)
 - Network access (scraping, OpenAI, ElevenLabs, AWS)
 - `.env` at the **repository root** (same directory as `scripts/run_once.py`), filled from `.env.example`
 - AWS credentials allowed to **`s3:PutObject`** (and optionally **CloudFront** invalidation) for your bucket

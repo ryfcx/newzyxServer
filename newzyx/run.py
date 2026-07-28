@@ -36,6 +36,7 @@ def run_daily_pipeline(t: int = 0) -> int:
         ep = None
         audio_files = []
         site_files = []
+        news_text, qa_text = "", ""
         script_path = os.path.join(workspace.get_workspace(), "script.txt")
 
         _step(1, collect.collect_urls)
@@ -52,11 +53,15 @@ def run_daily_pipeline(t: int = 0) -> int:
             print("[newzyx] Skipped: not enough quality articles.", flush=True)
             return 0
 
-        _step(5, lambda: episode.create_script(script_path, ep, t=t))
+        def do_script():
+            nonlocal news_text, qa_text
+            news_text, qa_text = episode.create_script(script_path, ep, t=t)
+
+        _step(5, do_script)
 
         def do_tts():
             nonlocal audio_files
-            audio_files = tts.tts(script_path, t=t)
+            audio_files = tts.tts(news_text, qa_text, t=t)
 
         _step(6, do_tts)
 

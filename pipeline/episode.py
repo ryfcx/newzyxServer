@@ -6,6 +6,11 @@ from openai import OpenAI
 from newzyx import config, utils, workspace
 from pipeline import db
 
+# Literal marker inserted between the news portion and the quiz portion so the
+# polished script can be split into two TTS segments (stitched with a real
+# silence gap by pydub in pipeline/tts.py, instead of relying on inline tags).
+QA_SPLIT_MARKER = "@@QASPLIT@@"
+
 
 def build_episode_description(articles):
     """RSS/Apple episode blurb listing the stories covered."""
@@ -77,7 +82,10 @@ CRITICAL:
 - Remove any duplicate news items both from the news details as well as related Q&A in the end.
 - Keep the [break] and [excited] tags and '...' markers as-is, just remove the extra greetings in the middle.
 - If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
-- Add a brief inspiring ending, with something thought-provoking, not just "bye"
+- Use natural, varied transitions between stories (e.g. "Not everyone is cheering, however...", "Speaking of big moments...", "In other news..."). Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
+- Add a brief, warm, inspiring ending with something thought-provoking — NOT just "bye".
+- CRITICAL: Do NOT promise a specific next episode time or date in the ending (no "see you tomorrow", "join us next week", "back on Monday", etc.). Keep the sign-off general and evergreen.
+- CRITICAL: The script contains a literal marker "{QA_SPLIT_MARKER}" separating the news portion from the quiz portion. Keep this marker exactly as-is, in the same position, with no spaces added inside it and nothing else changed about it — it is used programmatically to split the audio.
 
 {script} """
 
@@ -86,7 +94,7 @@ CRITICAL:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an engaging podcast host for kids aged 12-16. You're enthusiastic, relatable, and treat your audience as intelligent people who deserve real news delivered in an exciting way. Think: charismatic teacher meets YouTube personality - informative but fun.",
+                    "content": "You are Zara, a warm and engaging podcast host for kids aged 12-16, in the style of a friendly morning news anchor. You're enthusiastic, relatable, and treat your audience as intelligent people who deserve real news delivered in an exciting way. Think: charismatic teacher meets YouTube personality - informative but fun, with a warm, welcoming delivery and light personality between stories.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -101,26 +109,47 @@ def create_script(fname, ep, t=0):
     tag1 = " [silence] "
     tag2 = " [excited] "
 
-    intro = f"Welcome to newzyx podcast for kids. Today is {utils.ymd(t, '%B %d, %Y')}..."
-    bridge = " This is all for today and lets jump to our review section..."
+    intro = (
+        f"Good morning, and welcome to Newzyx! I'm Zara. "
+        f"Today is {utils.ymd(t, '%A, %B %d, %Y')}..."
+    )
+    bridge = " That wraps up today's top stories. Now let's see what you remember with today's quiz..."
 
     news_parts = [a["pod_script"] for a in ep]
     qa_parts = [a["pod_question"] + tag1 + tag2 + a["pod_answer"] for a in ep]
 
-    script = intro + tag1 + f"{tag1} ".join(news_parts) + tag1 + bridge + tag1 + f"{tag1} ".join(qa_parts) + tag1
+    news_script = intro + tag1 + f"{tag1} ".join(news_parts) + tag1 + bridge
+    qa_script = f"{tag1} ".join(qa_parts) + tag1
+
+    script = news_script + tag1 + QA_SPLIT_MARKER + tag1 + qa_script
 
     script = _fix_script_flow(script)
     script = utils.cleanupTxt(script)
 
+    if QA_SPLIT_MARKER in script:
+        news_text, qa_text = script.split(QA_SPLIT_MARKER, 1)
+    else:
+        # Polish step dropped the marker; fall back to one continuous segment.
+        print("  Warning: QA split marker missing after polish, using single audio segment")
+        news_text, qa_text = script, ""
+
+    news_text = news_text.strip()
+    qa_text = qa_text.strip()
+
     with open(fname, "w", encoding="utf-8") as f:
-        f.write(script)
+        f.write(news_text)
+        if qa_text:
+            f.write("\n\n--- Quiz Section ---\n\n")
+            f.write(qa_text)
 
     date_str = utils.ymd(t)
     ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
     os.makedirs(ep_dir, exist_ok=True)
     shutil.copy(fname, os.path.join(ep_dir, "script.txt"))
 
-    print(f"  Script saved ({len(script.split())} words)")
+    total_words = len(news_text.split()) + len(qa_text.split())
+    print(f"  Script saved ({total_words} words)")
+    return news_text, qa_text
 
 
 def create_site(ep, t=0):

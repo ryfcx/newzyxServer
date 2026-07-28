@@ -5,4 +5,5 @@ ftfy
 lxml
 mutagen
 openai
+pydub
 requests
