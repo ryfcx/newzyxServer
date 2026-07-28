@@ -6,10 +6,12 @@ from openai import OpenAI
 from newzyx import config, utils, workspace
 from pipeline import db
 
-# Literal marker inserted between the news portion and the quiz portion so the
-# polished script can be split into two TTS segments (stitched with a real
-# silence gap by pydub in pipeline/tts.py, instead of relying on inline tags).
-QA_SPLIT_MARKER = "@@QASPLIT@@"
+# Literal markers used to split the polished script into separate TTS segments
+# (stitched with real silence gaps by pydub in pipeline/tts.py, instead of
+# relying on inline tags the TTS engine doesn't reliably honor).
+QA_SPLIT_MARKER = "@@QASPLIT@@"  # between the news portion and the quiz portion
+QA_Q_MARKER = "@@Q@@"  # before each quiz question
+QA_A_MARKER = "@@A@@"  # before each quiz answer
 
 
 def build_episode_description(articles):
@@ -86,6 +88,7 @@ CRITICAL:
 - Add a brief, warm, inspiring ending with something thought-provoking — NOT just "bye".
 - CRITICAL: Do NOT promise a specific next episode time or date in the ending (no "see you tomorrow", "join us next week", "back on Monday", etc.). Keep the sign-off general and evergreen.
 - CRITICAL: The script contains a literal marker "{QA_SPLIT_MARKER}" separating the news portion from the quiz portion. Keep this marker exactly as-is, in the same position, with no spaces added inside it and nothing else changed about it — it is used programmatically to split the audio.
+- CRITICAL: In the quiz portion, every question is preceded by the literal marker "{QA_Q_MARKER}" and every answer is preceded by the literal marker "{QA_A_MARKER}". Keep every occurrence of both markers exactly as-is, immediately before their question/answer, in the same order — they are used programmatically to insert a real pause between each question and its answer so listeners have time to answer.
 
 {script} """
 
@@ -105,6 +108,28 @@ CRITICAL:
         return script
 
 
+def _parse_qa_pairs(qa_raw):
+    """Split marker-delimited quiz text into an ordered list of (question, answer) tuples."""
+    tokens = re.split(f"({re.escape(QA_Q_MARKER)}|{re.escape(QA_A_MARKER)})", qa_raw)
+    pairs = []
+    current_q = None
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok == QA_Q_MARKER and i + 1 < len(tokens):
+            current_q = tokens[i + 1].strip()
+            i += 2
+        elif tok == QA_A_MARKER and i + 1 < len(tokens):
+            answer = tokens[i + 1].strip()
+            if current_q:
+                pairs.append((current_q, answer))
+            current_q = None
+            i += 2
+        else:
+            i += 1
+    return pairs
+
+
 def create_script(fname, ep, t=0):
     tag1 = " [silence] "
     tag2 = " [excited] "
@@ -116,7 +141,10 @@ def create_script(fname, ep, t=0):
     bridge = " That wraps up today's top stories. Now let's see what you remember with today's quiz..."
 
     news_parts = [a["pod_script"] for a in ep]
-    qa_parts = [a["pod_question"] + tag1 + tag2 + a["pod_answer"] for a in ep]
+    qa_parts = [
+        QA_Q_MARKER + a["pod_question"] + tag1 + QA_A_MARKER + tag2 + a["pod_answer"]
+        for a in ep
+    ]
 
     news_script = intro + tag1 + f"{tag1} ".join(news_parts) + tag1 + bridge
     qa_script = f"{tag1} ".join(qa_parts) + tag1
@@ -127,29 +155,35 @@ def create_script(fname, ep, t=0):
     script = utils.cleanupTxt(script)
 
     if QA_SPLIT_MARKER in script:
-        news_text, qa_text = script.split(QA_SPLIT_MARKER, 1)
+        news_text, qa_raw = script.split(QA_SPLIT_MARKER, 1)
     else:
         # Polish step dropped the marker; fall back to one continuous segment.
         print("  Warning: QA split marker missing after polish, using single audio segment")
-        news_text, qa_text = script, ""
+        news_text, qa_raw = script, ""
 
     news_text = news_text.strip()
-    qa_text = qa_text.strip()
+    qa_pairs = _parse_qa_pairs(qa_raw)
+    if qa_raw.strip() and not qa_pairs:
+        print("  Warning: Q/A markers missing after polish, quiz section will have no answer pause")
 
     with open(fname, "w", encoding="utf-8") as f:
         f.write(news_text)
-        if qa_text:
+        if qa_pairs:
             f.write("\n\n--- Quiz Section ---\n\n")
-            f.write(qa_text)
+            for q, a in qa_pairs:
+                f.write(f"Q: {q}\nA: {a}\n\n")
+        elif qa_raw.strip():
+            f.write("\n\n--- Quiz Section ---\n\n")
+            f.write(qa_raw.strip())
 
     date_str = utils.ymd(t)
     ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
     os.makedirs(ep_dir, exist_ok=True)
     shutil.copy(fname, os.path.join(ep_dir, "script.txt"))
 
-    total_words = len(news_text.split()) + len(qa_text.split())
+    total_words = len(news_text.split()) + sum(len(q.split()) + len(a.split()) for q, a in qa_pairs)
     print(f"  Script saved ({total_words} words)")
-    return news_text, qa_text
+    return news_text, qa_pairs
 
 
 def create_site(ep, t=0):

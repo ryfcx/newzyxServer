@@ -14,10 +14,11 @@ _PRONOUNCE_SUBS = [
     (re.compile(r"newzyx", re.IGNORECASE), "New-zix"),
 ]
 
-# Real silence inserted between the news segment and the quiz segment, so the
-# transition isn't instant. Stitched locally with pydub rather than relying on
-# inline TTS pause tags, which aren't reliably honored by the turbo model.
-QA_GAP_MS = 1500
+# Real silence gaps, stitched locally with pydub rather than relying on inline
+# TTS pause tags, which aren't reliably honored by the turbo model.
+QA_GAP_MS = 1500        # between the news segment and the start of the quiz
+QA_ANSWER_GAP_MS = 3000  # between a question and its answer, so listeners can answer
+QA_PAIR_GAP_MS = 800    # between one quiz pair and the next
 
 
 def _apply_pronunciation_fixes(text):
@@ -38,7 +39,7 @@ def _synthesize(client, text):
     return AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
 
 
-def tts(news_text, qa_text="", t=0):
+def tts(news_text, qa_pairs=None, t=0):
     date_str = (datetime.now() - timedelta(days=t)).strftime("%Y-%m-%d")
 
     ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
@@ -50,10 +51,17 @@ def tts(news_text, qa_text="", t=0):
 
     combined = _synthesize(client, news_text)
 
-    if qa_text.strip():
-        gap = AudioSegment.silent(duration=QA_GAP_MS)
-        qa_audio = _synthesize(client, qa_text)
-        combined = combined + gap + qa_audio
+    if qa_pairs:
+        combined = combined + AudioSegment.silent(duration=QA_GAP_MS)
+        answer_gap = AudioSegment.silent(duration=QA_ANSWER_GAP_MS)
+        pair_gap = AudioSegment.silent(duration=QA_PAIR_GAP_MS)
+
+        for i, (question, answer) in enumerate(qa_pairs):
+            if i > 0:
+                combined += pair_gap
+            question_audio = _synthesize(client, question)
+            answer_audio = _synthesize(client, answer)
+            combined = combined + question_audio + answer_gap + answer_audio
 
     combined.export(dated_mp3, format="mp3")
     generated = [dated_mp3]
