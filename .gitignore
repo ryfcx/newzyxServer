@@ -7,6 +7,7 @@ data/newzyx.db
 data/newzyx.db-wal
 data/newzyx.db-shm
 data/script.txt
+data/workspace_archive/
 website/episodes/
 website/index.html
 website/today.mp3

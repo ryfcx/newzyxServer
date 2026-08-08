@@ -13,7 +13,7 @@ from pipeline import db, collect, extract, process, episode, tts, upload, rss
 
 
 def _install_cleanup_handlers():
-    """Ensure ephemeral /tmp/newzyx_* dirs are removed on exit or Ctrl-C/SIGTERM."""
+    """Archive ephemeral /tmp/newzyx_* dirs on exit or Ctrl-C/SIGTERM."""
     atexit.register(workspace.cleanup_workspace)
 
     def _on_signal(signum, _frame):

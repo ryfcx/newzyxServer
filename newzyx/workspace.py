@@ -4,10 +4,13 @@ Ephemeral build directory (hybrid deploy): generated website/audio/RSS live here
 - NEWZYX_EPHEMERAL=1 (default): tempfile directory per process; safe for Pi SD cards.
 - NEWZYX_EPHEMERAL=0: use repo root (legacy local website/).
 - NEWZYX_WORKSPACE=/path: explicit workspace (never auto-deleted after a run).
+
+Finished / orphaned temp workspaces are moved to data/workspace_archive/ (not deleted).
 """
 import os
 import shutil
 import tempfile
+from datetime import datetime
 
 from newzyx.config import PROJECT_ROOT
 
@@ -22,15 +25,57 @@ def project_website_dir():
     return os.path.join(PROJECT_ROOT, "website")
 
 
+def archive_dir():
+    """Where finished/orphaned ephemeral workspaces are kept."""
+    override = os.environ.get("NEWZYX_ARCHIVE_DIR", "").strip()
+    if override:
+        path = os.path.abspath(override)
+    else:
+        path = os.path.join(PROJECT_ROOT, "data", "workspace_archive")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def _temp_root():
     return tempfile.gettempdir()
 
 
-def cleanup_orphaned_temp_workspaces(keep_path=None):
+def _archive_workspace(path, reason="run"):
     """
-    Remove leftover /tmp/newzyx_* dirs from killed or crashed runs.
+    Move a temp workspace into the archive folder. Returns dest path, or None on skip/fail.
+    Never deletes the source if the move fails.
+    """
+    if not path or not os.path.isdir(path):
+        return None
+    abs_path = os.path.abspath(path)
+    # Never archive the project root or an explicit non-temp workspace outside /tmp.
+    if abs_path == os.path.abspath(PROJECT_ROOT):
+        return None
+
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    base = os.path.basename(abs_path.rstrip(os.sep)) or "workspace"
+    dest_name = f"{stamp}_{reason}_{base}"
+    dest = os.path.join(archive_dir(), dest_name)
+    # Avoid collisions if two cleanups happen in the same second.
+    n = 1
+    while os.path.exists(dest):
+        dest = os.path.join(archive_dir(), f"{dest_name}_{n}")
+        n += 1
+
+    try:
+        shutil.move(abs_path, dest)
+        return dest
+    except OSError as e:
+        print(f"[newzyx] Warning: could not archive {abs_path}: {e}", flush=True)
+        return None
+
+
+def archive_orphaned_temp_workspaces(keep_path=None):
+    """
+    Move leftover /tmp/newzyx_* dirs from killed or crashed runs into the archive.
 
     Safe for the usual single daily job; skips the active workspace if provided.
+    Returns the number of workspaces archived.
     """
     keep = os.path.abspath(keep_path) if keep_path else None
     root = _temp_root()
@@ -39,7 +84,7 @@ def cleanup_orphaned_temp_workspaces(keep_path=None):
     except OSError:
         return 0
 
-    removed = 0
+    archived = 0
     for name in names:
         if not name.startswith(_TMP_PREFIX):
             continue
@@ -48,9 +93,13 @@ def cleanup_orphaned_temp_workspaces(keep_path=None):
             continue
         if not os.path.isdir(path):
             continue
-        shutil.rmtree(path, ignore_errors=True)
-        removed += 1
-    return removed
+        if _archive_workspace(path, reason="orphan"):
+            archived += 1
+    return archived
+
+
+# Back-compat alias used by older call sites / mental model.
+cleanup_orphaned_temp_workspaces = archive_orphaned_temp_workspaces
 
 
 def init_workspace(ephemeral=None, explicit_path=None):
@@ -58,8 +107,8 @@ def init_workspace(ephemeral=None, explicit_path=None):
     Call once at pipeline start. If unset, workspace defaults to PROJECT_ROOT until this runs.
     """
     global _workspace_root, _workspace_is_ephemeral_tmp
-    # Clear leftovers from prior killed runs before creating a fresh temp dir.
-    cleanup_orphaned_temp_workspaces()
+    # Archive leftovers from prior killed runs before creating a fresh temp dir.
+    archive_orphaned_temp_workspaces()
     _workspace_is_ephemeral_tmp = False
     if explicit_path:
         _workspace_root = os.path.abspath(explicit_path)
@@ -97,19 +146,22 @@ def generated_website_dir():
 
 
 def cleanup_workspace():
-    """Remove only tempfile dirs from init; never deletes explicit WORKSPACE or PROJECT_ROOT."""
+    """Archive this run's tempfile workspace; never deletes PROJECT_ROOT or NEWZYX_WORKSPACE."""
     global _workspace_root, _workspace_is_ephemeral_tmp
     path = _workspace_root
     was_tmp = _workspace_is_ephemeral_tmp
     _workspace_root = None
     _workspace_is_ephemeral_tmp = False
+
+    archived_current = None
     if was_tmp and path and os.path.isdir(path):
-        shutil.rmtree(path, ignore_errors=True)
-    # Also sweep any other orphaned newzyx_* temp dirs (e.g. from SIGKILL).
-    removed = cleanup_orphaned_temp_workspaces()
-    if was_tmp or removed:
-        print(
-            f"[newzyx] Cleaned workspace temp"
-            + (f" (+{removed} orphaned)" if removed else ""),
-            flush=True,
-        )
+        archived_current = _archive_workspace(path, reason="run")
+
+    orphaned = archive_orphaned_temp_workspaces()
+    if archived_current or orphaned:
+        msg = "[newzyx] Archived workspace"
+        if archived_current:
+            msg += f" → {archived_current}"
+        if orphaned:
+            msg += f" (+{orphaned} orphaned)"
+        print(msg, flush=True)
