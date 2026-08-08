@@ -140,12 +140,82 @@ def _parse_qa_pairs(qa_raw):
     return pairs
 
 
+_DAY_WORDS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten",
+    11: "eleven",
+    12: "twelve",
+    13: "thirteen",
+    14: "fourteen",
+    15: "fifteen",
+    16: "sixteen",
+    17: "seventeen",
+    18: "eighteen",
+    19: "nineteen",
+    20: "twenty",
+    21: "twenty one",
+    22: "twenty two",
+    23: "twenty three",
+    24: "twenty four",
+    25: "twenty five",
+    26: "twenty six",
+    27: "twenty seven",
+    28: "twenty eight",
+    29: "twenty nine",
+    30: "thirty",
+    31: "thirty one",
+}
+
+
+def _spoken_year(year):
+    """Spell years for TTS so models don't slur digit clusters like 2026."""
+    if 2000 <= year <= 2099:
+        ones = year % 100
+        if ones == 0:
+            return "two thousand"
+        if ones < 10:
+            return f"two thousand {_DAY_WORDS[ones]}"
+        return f"twenty {_DAY_WORDS[ones]}"
+    return str(year)
+
+
+def _spoken_date(t=0):
+    """Plain spoken date — avoid ordinals like 'eighth' that TTS often mangles."""
+    from datetime import datetime, timedelta
+
+    d = datetime.now() - timedelta(days=t)
+    weekday = d.strftime("%A")
+    month = d.strftime("%B")
+    day = _DAY_WORDS.get(d.day, str(d.day))
+    year = _spoken_year(d.year)
+    return f"{weekday}, {month} {day}, {year}"
+
+
+def _canonical_intro_parts(t=0):
+    """
+    Fixed daily open as separate spoken beats.
+
+    Kept out of the polish LLM, and split so TTS can't bury the host name
+    inside a long date line (e.g. mangling 'August 8th' into gibberish).
+    """
+    return {
+        "greeting": "Good morning, and welcome to Newzyx!",
+        "name": f"I'm {HOST_NAME}.",
+        "date": f"Today is {_spoken_date(t)}.",
+    }
+
+
 def _canonical_intro(t=0):
-    """Fixed daily open — never polished, so the host name is always present."""
-    return (
-        f"Good morning, and welcome to Newzyx! I'm {HOST_NAME}. "
-        f"Today is {utils.ymd(t, '%A, %B %d, %Y')}."
-    )
+    parts = _canonical_intro_parts(t)
+    return f"{parts['greeting']} {parts['name']} {parts['date']}"
 
 
 def _default_bridge():
@@ -160,6 +230,7 @@ def create_script(fname, ep, t=0):
     tag2 = " [excited] "
 
     # Intro is applied after polish so the LLM can't drop or rename the host.
+    intro_parts = _canonical_intro_parts(t)
     intro = _canonical_intro(t)
     bridge_seed = _default_bridge()
 
@@ -231,6 +302,7 @@ def create_script(fname, ep, t=0):
 
     script_parts = {
         "intro": intro,
+        "intro_parts": intro_parts,
         "topics": topics,
         "bridge": bridge,
         "qa_pairs": qa_pairs,
