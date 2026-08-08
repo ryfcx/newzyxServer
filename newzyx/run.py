@@ -3,11 +3,28 @@ Single daily pipeline run — server edition (exit after one pass; schedule exte
 """
 from __future__ import annotations
 
+import atexit
 import os
+import signal
 from datetime import datetime
 
 from newzyx import workspace
 from pipeline import db, collect, extract, process, episode, tts, upload, rss
+
+
+def _install_cleanup_handlers():
+    """Ensure ephemeral /tmp/newzyx_* dirs are removed on exit or Ctrl-C/SIGTERM."""
+    atexit.register(workspace.cleanup_workspace)
+
+    def _on_signal(signum, _frame):
+        workspace.cleanup_workspace()
+        raise SystemExit(128 + signum)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, _on_signal)
+        except (ValueError, OSError):
+            pass
 
 STEP_LABELS = (
     "Collect URLs",
@@ -30,6 +47,7 @@ def _step(num: int, fn):
 def run_daily_pipeline(t: int = 0) -> int:
     """Run the full pipeline once. Returns 0 on success (including skipped episode)."""
     started = datetime.now()
+    _install_cleanup_handlers()
     workspace.init_workspace_from_env()
     try:
         db.init_db()

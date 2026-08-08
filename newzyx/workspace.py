@@ -11,6 +11,8 @@ import tempfile
 
 from newzyx.config import PROJECT_ROOT
 
+_TMP_PREFIX = "newzyx_"
+
 _workspace_root = None
 _workspace_is_ephemeral_tmp = False
 
@@ -20,11 +22,44 @@ def project_website_dir():
     return os.path.join(PROJECT_ROOT, "website")
 
 
+def _temp_root():
+    return tempfile.gettempdir()
+
+
+def cleanup_orphaned_temp_workspaces(keep_path=None):
+    """
+    Remove leftover /tmp/newzyx_* dirs from killed or crashed runs.
+
+    Safe for the usual single daily job; skips the active workspace if provided.
+    """
+    keep = os.path.abspath(keep_path) if keep_path else None
+    root = _temp_root()
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return 0
+
+    removed = 0
+    for name in names:
+        if not name.startswith(_TMP_PREFIX):
+            continue
+        path = os.path.join(root, name)
+        if keep and os.path.abspath(path) == keep:
+            continue
+        if not os.path.isdir(path):
+            continue
+        shutil.rmtree(path, ignore_errors=True)
+        removed += 1
+    return removed
+
+
 def init_workspace(ephemeral=None, explicit_path=None):
     """
     Call once at pipeline start. If unset, workspace defaults to PROJECT_ROOT until this runs.
     """
     global _workspace_root, _workspace_is_ephemeral_tmp
+    # Clear leftovers from prior killed runs before creating a fresh temp dir.
+    cleanup_orphaned_temp_workspaces()
     _workspace_is_ephemeral_tmp = False
     if explicit_path:
         _workspace_root = os.path.abspath(explicit_path)
@@ -34,7 +69,7 @@ def init_workspace(ephemeral=None, explicit_path=None):
         raw = os.environ.get("NEWZYX_EPHEMERAL", "1").strip().lower()
         ephemeral = raw not in ("0", "false", "no")
     if ephemeral:
-        _workspace_root = tempfile.mkdtemp(prefix="newzyx_")
+        _workspace_root = tempfile.mkdtemp(prefix=_TMP_PREFIX)
         _workspace_is_ephemeral_tmp = True
     else:
         _workspace_root = PROJECT_ROOT
@@ -70,3 +105,11 @@ def cleanup_workspace():
     _workspace_is_ephemeral_tmp = False
     if was_tmp and path and os.path.isdir(path):
         shutil.rmtree(path, ignore_errors=True)
+    # Also sweep any other orphaned newzyx_* temp dirs (e.g. from SIGKILL).
+    removed = cleanup_orphaned_temp_workspaces()
+    if was_tmp or removed:
+        print(
+            f"[newzyx] Cleaned workspace temp"
+            + (f" (+{removed} orphaned)" if removed else ""),
+            flush=True,
+        )
