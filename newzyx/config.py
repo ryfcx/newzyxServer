@@ -36,7 +36,7 @@ else:
 
 ELEVENLABS_API_URL = os.environ.get("ELEVENLABS_API_URL", "https://api.elevenlabs.io/v1/text-to-dialogue")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_MODEL_ID = os.environ.get("ELEVENLABS_MODEL_ID", "eleven_turbo_v2_5")
+ELEVENLABS_MODEL_ID = os.environ.get("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
 ELEVENLABS_MODEL_ID_DIALOGUE = os.environ.get("ELEVENLABS_MODEL_ID_DIALOGUE", "eleven_v3")
 ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "6yesjON9QKSLuPBdVCoB")
 ELEVENLABS_VOICE_ID2 = os.environ.get("ELEVENLABS_VOICE_ID2", "IMcnLoWVvO9c3ycsIvkh")
