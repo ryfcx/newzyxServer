@@ -7,8 +7,10 @@ from newzyx import config, utils, workspace
 from pipeline import db
 
 # Literal markers used to split the polished script into separate TTS segments
-# (stitched with real silence gaps by pydub in pipeline/tts.py, instead of
-# relying on inline tags the TTS engine doesn't reliably honor).
+# (stitched with real silence / music beds by pydub in pipeline/tts.py).
+HOST_NAME = "Zara"
+TOPIC_SPLIT_MARKER = "@@TOPIC@@"  # between individual news stories
+BRIDGE_SPLIT_MARKER = "@@BRIDGE@@"  # before the quiz lead-in
 QA_SPLIT_MARKER = "@@QASPLIT@@"  # between the news portion and the quiz portion
 QA_Q_MARKER = "@@Q@@"  # before each quiz question
 QA_A_MARKER = "@@A@@"  # before each quiz answer
@@ -78,17 +80,18 @@ def _fix_script_flow(script):
 CRITICAL:
 - Make sure the script is 600-700 words long to make a 5 minute podcast.
 - Try your best to keep the original script content and do not add any extra information.
-- This script will be fed to elevenlabs text-to-speech
+- This script will be fed to elevenlabs text-to-speech. Prefer short, clear sentences (about 12-18 words). Avoid tongue-twisters, stacked clauses, and hard-to-say word clusters.
 - Make the script flow well, remove any redundant Hello and Hi
-- Remove any greetings in the middle of the script.
+- Remove any greetings in the middle of the script. Do NOT introduce yourself or say your name in the story segments — the intro is handled separately.
 - Remove any duplicate news items both from the news details as well as related Q&A in the end.
 - Keep the [break] and [excited] tags and '...' markers as-is, just remove the extra greetings in the middle.
 - If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
-- Use natural, varied transitions between stories (e.g. "Not everyone is cheering, however...", "Speaking of big moments...", "In other news..."). Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
-- Add a brief, warm, inspiring ending with something thought-provoking — NOT just "bye".
+- After each "{TOPIC_SPLIT_MARKER}", start the next story with a clear spoken topic cue so listeners hear a clean handoff (rotate phrases like "Next up...", "Our next story...", "Switching gears...", "Also today...", "One more for you..."). Keep each cue short.
+- Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
+- Put a brief, warm, inspiring ending (NOT just "bye") in the bridge section after "{BRIDGE_SPLIT_MARKER}".
 - CRITICAL: Do NOT promise a specific next episode time or date in the ending (no "see you tomorrow", "join us next week", "back on Monday", etc.). Keep the sign-off general and evergreen.
-- CRITICAL: The script contains a literal marker "{QA_SPLIT_MARKER}" separating the news portion from the quiz portion. Keep this marker exactly as-is, in the same position, with no spaces added inside it and nothing else changed about it — it is used programmatically to split the audio.
-- CRITICAL: In the quiz portion, every question is preceded by the literal marker "{QA_Q_MARKER}" and every answer is preceded by the literal marker "{QA_A_MARKER}". Keep every occurrence of both markers exactly as-is, immediately before their question/answer, in the same order — they are used programmatically to insert a real pause between each question and its answer so listeners have time to answer.
+- CRITICAL: Keep every literal marker exactly as-is, in the same order, with no spaces added inside them — they are used programmatically to split the audio:
+  "{TOPIC_SPLIT_MARKER}", "{BRIDGE_SPLIT_MARKER}", "{QA_SPLIT_MARKER}", "{QA_Q_MARKER}", "{QA_A_MARKER}".
 
 {script} """
 
@@ -97,7 +100,14 @@ CRITICAL:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are Zara, a warm and engaging podcast host for kids aged 12-16, in the style of a friendly morning news anchor. You're enthusiastic, relatable, and treat your audience as intelligent people who deserve real news delivered in an exciting way. Think: charismatic teacher meets YouTube personality - informative but fun, with a warm, welcoming delivery and light personality between stories.",
+                    "content": (
+                        f"You are {HOST_NAME}, a warm and engaging podcast host for kids aged 12-16, "
+                        "in the style of a friendly morning news anchor. You're enthusiastic, relatable, "
+                        "and treat your audience as intelligent people who deserve real news delivered in "
+                        "an exciting way. Think: charismatic teacher meets YouTube personality - informative "
+                        "but fun, with a warm, welcoming delivery and light personality between stories. "
+                        f"Your name is always {HOST_NAME}."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -130,15 +140,28 @@ def _parse_qa_pairs(qa_raw):
     return pairs
 
 
+def _canonical_intro(t=0):
+    """Fixed daily open — never polished, so the host name is always present."""
+    return (
+        f"Good morning, and welcome to Newzyx! I'm {HOST_NAME}. "
+        f"Today is {utils.ymd(t, '%A, %B %d, %Y')}."
+    )
+
+
+def _default_bridge():
+    return (
+        f"That wraps up today's top stories. I'm {HOST_NAME}, and now let's see "
+        "what you remember with today's quiz."
+    )
+
+
 def create_script(fname, ep, t=0):
     tag1 = " [silence] "
     tag2 = " [excited] "
 
-    intro = (
-        f"Good morning, and welcome to Newzyx! I'm Zara. "
-        f"Today is {utils.ymd(t, '%A, %B %d, %Y')}..."
-    )
-    bridge = " That wraps up today's top stories. Now let's see what you remember with today's quiz..."
+    # Intro is applied after polish so the LLM can't drop or rename the host.
+    intro = _canonical_intro(t)
+    bridge_seed = _default_bridge()
 
     news_parts = [a["pod_script"] for a in ep]
     qa_parts = [
@@ -146,44 +169,96 @@ def create_script(fname, ep, t=0):
         for a in ep
     ]
 
-    news_script = intro + tag1 + f"{tag1} ".join(news_parts) + tag1 + bridge
-    qa_script = f"{tag1} ".join(qa_parts) + tag1
+    # Markers sit between stories so pydub can stitch real topic transitions.
+    topics_body = TOPIC_SPLIT_MARKER.join(news_parts)
 
-    script = news_script + tag1 + QA_SPLIT_MARKER + tag1 + qa_script
+    body = (
+        topics_body
+        + tag1
+        + BRIDGE_SPLIT_MARKER
+        + bridge_seed
+        + tag1
+        + QA_SPLIT_MARKER
+        + tag1
+        + f"{tag1} ".join(qa_parts)
+        + tag1
+    )
 
-    script = _fix_script_flow(script)
-    script = utils.cleanupTxt(script)
+    body = _fix_script_flow(body)
+    body = utils.cleanupTxt(body)
 
-    if QA_SPLIT_MARKER in script:
-        news_text, qa_raw = script.split(QA_SPLIT_MARKER, 1)
+    if QA_SPLIT_MARKER in body:
+        news_raw, qa_raw = body.split(QA_SPLIT_MARKER, 1)
     else:
-        # Polish step dropped the marker; fall back to one continuous segment.
-        print("  Warning: QA split marker missing after polish, using single audio segment")
-        news_text, qa_raw = script, ""
+        print("  Warning: QA split marker missing after polish, using single news segment")
+        news_raw, qa_raw = body, ""
 
-    news_text = news_text.strip()
+    if BRIDGE_SPLIT_MARKER in news_raw:
+        topics_raw, bridge = news_raw.split(BRIDGE_SPLIT_MARKER, 1)
+    else:
+        print("  Warning: bridge marker missing after polish, using default bridge")
+        topics_raw, bridge = news_raw, _default_bridge()
+
+    topics = [p.strip() for p in topics_raw.split(TOPIC_SPLIT_MARKER) if p.strip()]
+    if not topics and topics_raw.strip():
+        topics = [topics_raw.strip()]
+
+    # Reinforce clear spoken handoffs if polish dropped them.
+    topic_cues = (
+        "Next up...",
+        "Our next story...",
+        "Switching gears...",
+        "Also today...",
+        "One more for you...",
+        "And finally...",
+    )
+    cue_re = re.compile(
+        r"^(next up|our next story|switching gears|also today|one more for you|"
+        r"and finally|in other news|speaking of)\b",
+        re.IGNORECASE,
+    )
+    for i in range(1, len(topics)):
+        if not cue_re.match(topics[i]):
+            topics[i] = f"{topic_cues[(i - 1) % len(topic_cues)]} {topics[i]}"
+
+    bridge = bridge.strip() or _default_bridge()
+    if HOST_NAME.lower() not in bridge.lower():
+        bridge = f"{bridge} I'm {HOST_NAME}."
+
     qa_pairs = _parse_qa_pairs(qa_raw)
     if qa_raw.strip() and not qa_pairs:
         print("  Warning: Q/A markers missing after polish, quiz section will have no answer pause")
 
+    script_parts = {
+        "intro": intro,
+        "topics": topics,
+        "bridge": bridge,
+        "qa_pairs": qa_pairs,
+    }
+
     with open(fname, "w", encoding="utf-8") as f:
-        f.write(news_text)
+        f.write(intro + "\n\n")
+        for i, topic in enumerate(topics, 1):
+            f.write(f"--- Story {i} ---\n{topic}\n\n")
+        f.write(f"--- Bridge ---\n{bridge}\n")
         if qa_pairs:
-            f.write("\n\n--- Quiz Section ---\n\n")
+            f.write("\n--- Quiz Section ---\n\n")
             for q, a in qa_pairs:
                 f.write(f"Q: {q}\nA: {a}\n\n")
-        elif qa_raw.strip():
-            f.write("\n\n--- Quiz Section ---\n\n")
-            f.write(qa_raw.strip())
 
     date_str = utils.ymd(t)
     ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
     os.makedirs(ep_dir, exist_ok=True)
     shutil.copy(fname, os.path.join(ep_dir, "script.txt"))
 
-    total_words = len(news_text.split()) + sum(len(q.split()) + len(a.split()) for q, a in qa_pairs)
-    print(f"  Script saved ({total_words} words)")
-    return news_text, qa_pairs
+    total_words = (
+        len(intro.split())
+        + sum(len(s.split()) for s in topics)
+        + len(bridge.split())
+        + sum(len(q.split()) + len(a.split()) for q, a in qa_pairs)
+    )
+    print(f"  Script saved ({total_words} words, host={HOST_NAME}, stories={len(topics)})")
+    return script_parts
 
 
 def create_site(ep, t=0):

@@ -36,7 +36,7 @@ def run_daily_pipeline(t: int = 0) -> int:
         ep = None
         audio_files = []
         site_files = []
-        news_text, qa_pairs = "", []
+        script_parts = {}
         script_path = os.path.join(workspace.get_workspace(), "script.txt")
 
         _step(1, collect.collect_urls)
@@ -54,14 +54,14 @@ def run_daily_pipeline(t: int = 0) -> int:
             return 0
 
         def do_script():
-            nonlocal news_text, qa_pairs
-            news_text, qa_pairs = episode.create_script(script_path, ep, t=t)
+            nonlocal script_parts
+            script_parts = episode.create_script(script_path, ep, t=t)
 
         _step(5, do_script)
 
         def do_tts():
             nonlocal audio_files
-            audio_files = tts.tts(news_text, qa_pairs, t=t)
+            audio_files = tts.tts(script_parts, t=t)
 
         _step(6, do_tts)
 
