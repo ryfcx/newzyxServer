@@ -88,8 +88,8 @@ CRITICAL:
 - If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
 - After each "{TOPIC_SPLIT_MARKER}", start the next story with a clear spoken topic cue so listeners hear a clean handoff (rotate phrases like "Next up...", "Our next story...", "Switching gears...", "Also today...", "One more for you..."). Keep each cue short.
 - Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
-- Put a brief, warm, inspiring ending (NOT just "bye") in the bridge section after "{BRIDGE_SPLIT_MARKER}".
-- CRITICAL: Do NOT promise a specific next episode time or date in the ending (no "see you tomorrow", "join us next week", "back on Monday", etc.). Keep the sign-off general and evergreen.
+- After "{BRIDGE_SPLIT_MARKER}", keep only a short quiz lead-in (no sign-off, no goodbye). The real outro is added separately after the quiz.
+- Do NOT add a closing/outro in the news, bridge, or quiz sections.
 - CRITICAL: Keep every literal marker exactly as-is, in the same order, with no spaces added inside them — they are used programmatically to split the audio:
   "{TOPIC_SPLIT_MARKER}", "{BRIDGE_SPLIT_MARKER}", "{QA_SPLIT_MARKER}", "{QA_Q_MARKER}", "{QA_A_MARKER}".
 
@@ -225,6 +225,17 @@ def _default_bridge():
     )
 
 
+def _canonical_outro():
+    """
+    Fixed closing after the quiz — never polished, so the episode doesn't end
+    on the last answer. No specific next-episode schedule promises.
+    """
+    return (
+        f"That's all for today's Newzyx. I'm {HOST_NAME}. "
+        "Thanks for listening, stay curious, and we'll catch you on the next one."
+    )
+
+
 def create_script(fname, ep, t=0):
     tag1 = " [silence] "
     tag2 = " [excited] "
@@ -232,6 +243,7 @@ def create_script(fname, ep, t=0):
     # Intro is applied after polish so the LLM can't drop or rename the host.
     intro_parts = _canonical_intro_parts(t)
     intro = _canonical_intro(t)
+    outro = _canonical_outro()
     bridge_seed = _default_bridge()
 
     news_parts = [a["pod_script"] for a in ep]
@@ -306,6 +318,7 @@ def create_script(fname, ep, t=0):
         "topics": topics,
         "bridge": bridge,
         "qa_pairs": qa_pairs,
+        "outro": outro,
     }
 
     with open(fname, "w", encoding="utf-8") as f:
@@ -317,6 +330,7 @@ def create_script(fname, ep, t=0):
             f.write("\n--- Quiz Section ---\n\n")
             for q, a in qa_pairs:
                 f.write(f"Q: {q}\nA: {a}\n\n")
+        f.write(f"--- Outro ---\n{outro}\n")
 
     date_str = utils.ymd(t)
     ep_dir = os.path.join(workspace.generated_website_dir(), "episodes", date_str)
@@ -328,6 +342,7 @@ def create_script(fname, ep, t=0):
         + sum(len(s.split()) for s in topics)
         + len(bridge.split())
         + sum(len(q.split()) + len(a.split()) for q, a in qa_pairs)
+        + len(outro.split())
     )
     print(f"  Script saved ({total_words} words, host={HOST_NAME}, stories={len(topics)})")
     return script_parts

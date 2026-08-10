@@ -8,6 +8,9 @@ import shutil
 import os
 from newzyx import config, workspace
 
+# Keep in sync with pipeline.episode.HOST_NAME (avoid importing episode here).
+HOST_NAME = "Zara"
+
 # Brand spelling only — do NOT respell the host name; that made "Zara" unintelligible.
 _PRONOUNCE_SUBS = [
     (re.compile(r"\bnewzyx\b", re.IGNORECASE), "New-zix"),
@@ -80,6 +83,7 @@ BRIDGE_GAP_MS = 900
 QA_GAP_MS = 1500
 QA_ANSWER_GAP_MS = 3000
 QA_PAIR_GAP_MS = 800
+OUTRO_GAP_MS = 900
 
 _AUDIO_DIR = os.path.join(config.PROJECT_ROOT, "audio")
 _INTRO_MUSIC_PATH = os.path.join(_AUDIO_DIR, "intro_music.mp3")
@@ -241,7 +245,7 @@ def tts(script_parts, t=0):
     Build the episode MP3 from structured script parts.
 
     script_parts keys:
-      intro / intro_parts, topics (list[str]), bridge (str), qa_pairs (list[(q, a)])
+      intro / intro_parts, topics, bridge, qa_pairs, outro
     """
     date_str = (datetime.now() - timedelta(days=t)).strftime("%Y-%m-%d")
 
@@ -254,6 +258,7 @@ def tts(script_parts, t=0):
     topics = [s.strip() for s in (script_parts.get("topics") or []) if s and s.strip()]
     bridge = (script_parts.get("bridge") or "").strip()
     qa_pairs = script_parts.get("qa_pairs") or []
+    outro = (script_parts.get("outro") or "").strip()
 
     # Fallback: old callers may still pass a single news blob.
     if not script_parts.get("intro") and not script_parts.get("intro_parts") and script_parts.get("news_text"):
@@ -310,6 +315,33 @@ def tts(script_parts, t=0):
             segments.append(_synthesize(client, question))
             segments.append(answer_gap)
             segments.append(_synthesize(client, answer))
+
+    if outro:
+        segments.append(AudioSegment.silent(duration=OUTRO_GAP_MS))
+        if topic_sting is not None:
+            segments.append(_match_voice(topic_sting, ref))
+            segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
+        # Keep host name clear in the sign-off.
+        name_pat = rf"\bI'm\s+{re.escape(HOST_NAME)}\b"
+        if re.search(name_pat, outro, flags=re.I):
+            before, after = re.split(name_pat, outro, maxsplit=1, flags=re.I)
+            if before.strip():
+                segments.append(_synthesize(client, before.strip()))
+                segments.append(AudioSegment.silent(duration=INTRO_BEAT_GAP_MS))
+            segments.append(_synthesize(client, f"I'm {HOST_NAME}."))
+            segments.append(AudioSegment.silent(duration=INTRO_BEAT_GAP_MS))
+            if after.strip():
+                after = re.sub(r"^[\s,.]+", "", after.strip())
+                if after:
+                    segments.append(_synthesize(client, after))
+        else:
+            segments.append(_synthesize(client, outro))
+        # Soft music bed under the end, if available.
+        intro_music = _load_bed(_INTRO_MUSIC_PATH, target_dbfs=-18.0)
+        if intro_music is not None:
+            bed = _match_voice(intro_music.fade_in(200).fade_out(800), ref)
+            segments.append(AudioSegment.silent(duration=250))
+            segments.append(bed)
 
     combined = segments[0]
     for seg in segments[1:]:
