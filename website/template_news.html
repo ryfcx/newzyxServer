@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEWZYX: </title>
+<link rel="icon" href="NewzyxV2Favicon.ico" type="image/x-icon">
+<style>
+  /* Same palette / type as website/template.html — layout inspired by BBC / Guardian / PopSci desks */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f5f0eb;
+    color: #1a1a1a;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 16px;
+    line-height: 1.75;
+  }
+
+  header {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 0 24px;
+  }
+
+  .header-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    height: 70px;
+    gap: 16px;
+  }
+
+  .logo { height: 42px; width: 42px; filter: brightness(1.2); }
+
+  .masthead { display: flex; flex-direction: column; }
+
+  .masthead-title {
+    font-family: Georgia, serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #fff;
+  }
+
+  .masthead-tagline {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    color: #29abe2;
+    margin-top: -2px;
+  }
+
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .edition-date {
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+    color: #999;
+    text-align: right;
+    line-height: 1.3;
+    position: relative;
+    cursor: pointer;
+    padding: 6px 10px;
+    border: 1px solid #333;
+    border-radius: 4px;
+  }
+
+  .edition-date input {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    -webkit-appearance: none;
+  }
+
+  .edition-date:active input,
+  .edition-date:focus-within input {
+    opacity: 1; position: static; width: auto; height: auto;
+    background: #222; color: #ccc; border: none; font-size: 13px;
+    font-family: -apple-system, sans-serif; padding: 2px 4px; border-radius: 3px;
+  }
+
+  .latest-btn {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #fff;
+    background: #29abe2;
+    padding: 6px 14px;
+    border-radius: 4px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .latest-btn:hover { background: #1a8fc0; }
+
+  .theme-toggle {
+    background: none;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1;
+    color: #999;
+  }
+  .theme-toggle:hover { border-color: #29abe2; }
+
+  /* BBC-style rolling headlines on the familiar cyan bar */
+  .ticker {
+    background: #29abe2;
+    color: #fff;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: stretch;
+  }
+
+  .ticker-label {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 8px 14px;
+    background: #1a8fc0;
+    border-right: 1px solid rgba(255,255,255,0.25);
+    display: grid;
+    place-items: center;
+  }
+
+  .ticker-track { overflow: hidden; }
+  .ticker-move {
+    display: flex;
+    gap: 36px;
+    width: max-content;
+    padding: 8px 0;
+    animation: marquee 30s linear infinite;
+    font-family: -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ticker:hover .ticker-move { animation-play-state: paused; }
+  .ticker-item { white-space: nowrap; }
+  .ticker-item::before {
+    content: "•";
+    margin-right: 10px;
+    opacity: 0.85;
+  }
+
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 28px 24px 72px;
+  }
+
+  /* PopSci / BBC listen strip — same box language as original player */
+  .player-box {
+    background: #fff;
+    border: 2px solid #1a1a1a;
+    border-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+
+  .listen-badge {
+    background: #1a1a1a;
+    color: #fff;
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 6px 14px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .play-fab, .skip-btn {
+    border: 1px solid #1a1a1a;
+    background: #1a1a1a;
+    color: #fff;
+    font-family: -apple-system, sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 3px;
+    height: 36px;
+  }
+  .play-fab { min-width: 44px; padding: 0 12px; }
+  .skip-btn {
+    background: #fff;
+    color: #1a1a1a;
+    padding: 0 10px;
+    font-size: 11px;
+  }
+  .play-fab:hover { background: #29abe2; border-color: #29abe2; }
+  .skip-btn:hover { border-color: #29abe2; color: #29abe2; }
+
+  audio { flex: 1; min-width: 180px; height: 40px; }
+  audio::-webkit-media-controls-panel { background: #fafaf5; }
+
+  .section-label {
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #29abe2;
+    margin-bottom: 10px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+
+  .chip {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #555;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .chip:hover, .chip.active {
+    background: #1a1a1a;
+    border-color: #1a1a1a;
+    color: #fff;
+  }
+
+  /* Guardian/BBC style: big lead + stacked secondary */
+  .desk {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  .lead-story {
+    border-top: 4px solid #1a1a1a;
+    padding-top: 16px;
+  }
+
+  .lead-story .flag {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #29abe2;
+    margin-bottom: 8px;
+  }
+
+  .lead-story .article-title {
+    font-size: 32px;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+
+  .lead-story .article-summary {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    color: #444;
+    line-height: 1.65;
+    margin-bottom: 14px;
+  }
+
+  .stack {
+    border-top: 4px solid #29abe2;
+    padding-top: 4px;
+  }
+
+  .article {
+    padding: 16px 0;
+    border-bottom: 1px solid #ddd;
+  }
+  .article:last-child { border-bottom: none; }
+
+  .article .cat {
+    font-family: -apple-system, sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #29abe2;
+    margin-bottom: 4px;
+  }
+
+  .article-title {
+    font-size: 19px;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+
+  .article-summary {
+    color: #444;
+    font-size: 14.5px;
+    margin-bottom: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.6;
+  }
+
+  .article-meta {
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+    color: #999;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .article-meta a {
+    color: #1a1a1a;
+    text-decoration: none;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+  }
+  .article-meta a:hover { color: #29abe2; }
+
+  .score-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+  }
+  .score-dot.high { background: #22c55e; }
+  .score-dot.mid { background: #eab308; }
+
+  .stats-row {
+    display: flex;
+    gap: 18px;
+    margin: -8px 0 22px;
+    font-family: -apple-system, sans-serif;
+    font-size: 12px;
+    color: #777;
+  }
+  .stats-row strong { color: #1a1a1a; }
+
+  .empty-box {
+    text-align: center;
+    padding: 60px 20px;
+    border-top: 3px double #ccc;
+  }
+
+  /* Dark mode — match original template */
+  body.dark { background: #141414; color: #d4d4d4; }
+  body.dark header { background: #0a0a0a; }
+  body.dark .ticker { background: #1a6d8e; }
+  body.dark .ticker-label { background: #155a75; }
+  body.dark .listen-badge { background: #29abe2; color: #000; }
+  body.dark audio { filter: invert(1) hue-rotate(180deg); }
+  body.dark .player-box { background: #1a1a1a; border-color: #333; }
+  body.dark .play-fab { background: #29abe2; border-color: #29abe2; color: #000; }
+  body.dark .skip-btn { background: #1a1a1a; border-color: #444; color: #ccc; }
+  body.dark .chip { background: #1a1a1a; border-color: #333; color: #aaa; }
+  body.dark .chip.active { background: #29abe2; border-color: #29abe2; color: #000; }
+  body.dark .lead-story { border-top-color: #29abe2; }
+  body.dark .article-title { color: #eee; }
+  body.dark .article-summary,
+  body.dark .lead-story .article-summary { color: #999; }
+  body.dark .article-meta { color: #666; }
+  body.dark .article-meta a { color: #ccc; }
+  body.dark .article-meta a:hover { color: #29abe2; }
+  body.dark .article { border-bottom-color: #2a2a2a; }
+  body.dark .edition-date { border-color: #444; color: #777; }
+  body.dark .theme-toggle { border-color: #555; color: #777; }
+  body.dark .stats-row strong { color: #eee; }
+  body.dark .empty-box { border-top-color: #333; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 800px) {
+    .desk { grid-template-columns: 1fr; gap: 8px; }
+    .lead-story .article-title { font-size: 24px; }
+    .masthead-title { font-size: 20px; }
+    .player-box { flex-direction: column; align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-move { animation: none !important; }
+  }
+</style>
+</head>
+<body class="dark" data-episode="">
+
+<header>
+  <div class="header-inner">
+    <a href="index.html"><img src="NewzyxV2-removebg.png" class="logo" alt="Newzyx V2"></a>
+    <div class="masthead">
+      <div class="masthead-title">NEWZYX <span style="font-size:13px; font-weight:400; letter-spacing:1px; color:#29abe2; vertical-align:middle;">v2</span></div>
+      <div class="masthead-tagline">The Daily Digest for Kids</div>
+    </div>
+    <div class="header-right">
+      <a id="latestBtn" class="latest-btn" href="index.html">Latest</a>
+      <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
+      <div class="edition-date" onclick="document.getElementById('dtInput').showPicker?.()">
+        Browse<br>Archive
+        <input id="dtInput" type="date" min="2025-09-09">
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="ticker" id="breakingBar" aria-label="Headlines">
+  <div class="ticker-label" id="tickerLabel">Live</div>
+  <div class="ticker-track">
+    <div class="ticker-move" id="breakingMove"></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="player-box" id="playerCard">
+    <div class="listen-badge">Listen Now</div>
+    <button class="play-fab" id="playFab" type="button" aria-label="Play or pause">▶</button>
+    <button class="skip-btn" id="skipBack" type="button">-15s</button>
+    <button class="skip-btn" id="skipFwd" type="button">+15s</button>
+    <audio id="episodeAudio" controls src="today.mp3">Your browser does not support the audio element.</audio>
+  </div>
+
+  <div class="section-label">In this episode</div>
+  <div class="stats-row">
+    <span><strong id="storyCount">0</strong> stories</span>
+    <span>Top pick <strong id="topScore">—</strong></span>
+    <span id="editionLabel"></span>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="desk" id="newsLayout">
+    <div id="leadSlot"></div>
+    <div class="stack" id="articles"></div>
+  </div>
+  <div id="emptySlot"></div>
+</div>
+
+<script>
+  const dtInput = document.getElementById('dtInput');
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+  const audio = document.getElementById('episodeAudio');
+  const playFab = document.getElementById('playFab');
+
+  dtInput.addEventListener('change', () => { if (!isIOS) onDatePicked(); }, { passive: true });
+  dtInput.addEventListener('blur', () => { if (isIOS) onDatePicked(); }, { passive: true });
+
+  function localISODate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  (function initDateInputBounds() {
+    dtInput.max = localISODate(new Date());
+  })();
+
+  function onDatePicked() {
+    if (!dtInput.value) return;
+    const today = localISODate(new Date());
+    if (dtInput.value <= today && dtInput.value >= '2025-09-09')
+      window.location.href = dtInput.value + '.html';
+  }
+
+  function editionParts() {
+    const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const iso = document.body.getAttribute('data-episode');
+    let y, m, day;
+    if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      const p = iso.split('-');
+      y = parseInt(p[0], 10);
+      m = parseInt(p[1], 10) - 1;
+      day = parseInt(p[2], 10);
+    } else {
+      const t = document.title.replace('NEWZYX: ', '').trim();
+      if (!t) return null;
+      const d = new Date(t);
+      if (isNaN(d.getTime())) return null;
+      y = d.getFullYear();
+      m = d.getMonth();
+      day = d.getDate();
+    }
+    const wd = new Date(y, m, day).getDay();
+    return days[wd] + ' Edition — ' + months[m] + ' ' + day + ', ' + y;
+  }
+
+  (function setEdition() {
+    const line = editionParts();
+    if (!line) return;
+    document.getElementById('editionLabel').textContent = line;
+    document.getElementById('tickerLabel').textContent = 'Live';
+  })();
+
+  const DEMO_ARTICLES = [
+    {
+      title: "Scientists find a rare glowing deep-sea worm",
+      summary: "Researchers exploring a dark trench spotted a tiny worm that lights up like a night-light. The discovery could help engineers design better underwater sensors.",
+      score: 94, dt: "2026-08-10", source: "popsci", url: "https://example.com"
+    },
+    {
+      title: "Young athletes smash records at the junior games",
+      summary: "Teens from around the world raced, jumped, and cheered their way through a weekend of surprising finishes and brand-new personal bests.",
+      score: 92, dt: "2026-08-10", source: "bbc", url: "https://example.com"
+    },
+    {
+      title: "A new telescope snaps the sharpest Moon photo yet",
+      summary: "The image is so clear you can almost count the craters. Astronomers say it will help map future landing spots.",
+      score: 91, dt: "2026-08-10", source: "national-geographic", url: "https://example.com"
+    },
+    {
+      title: "City kids build a park for bees and butterflies",
+      summary: "Students turned an empty lot into a buzzing habitat — and learned how tiny pollinators keep our food growing.",
+      score: 90, dt: "2026-08-10", source: "guardian", url: "https://example.com"
+    }
+  ];
+
+  function loadArticles() {
+    const el = document.getElementById('articleData');
+    if (!el) return { articles: DEMO_ARTICLES, demo: true };
+    try {
+      const articles = JSON.parse(el.textContent);
+      if (!articles || !articles.length) return { articles: [], demo: false };
+      return { articles, demo: false };
+    } catch (e) {
+      return { articles: DEMO_ARTICLES, demo: true };
+    }
+  }
+
+  function sourceLabel(source) {
+    const s = (source || 'news').toLowerCase();
+    if (s.includes('bbc')) return 'Sports';
+    if (s.includes('pop')) return 'Science';
+    if (s.includes('nat') || s.includes('geo')) return 'Explore';
+    if (s.includes('guard')) return 'World';
+    if (s.includes('abc') || s.includes('nbc')) return 'Headlines';
+    return 'News';
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function metaHtml(a) {
+    const scoreNum = parseInt(a.score, 10);
+    const dotClass = scoreNum >= 90 ? 'high' : 'mid';
+    return `
+      <div class="article-meta">
+        <a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.source || 'Source')}</a>
+        <span>${escapeHtml(a.dt || '')}</span>
+        <span><span class="score-dot ${dotClass}"></span>${escapeHtml(a.score)}% relevance</span>
+      </div>`;
+  }
+
+  let ALL = [];
+  let activeChip = 'All';
+
+  function renderBreaking(articles) {
+    const move = document.getElementById('breakingMove');
+    if (!articles.length) {
+      const line = editionParts() || 'NO EPISODE AVAILABLE';
+      move.innerHTML = `<div class="ticker-item">${escapeHtml(line)}</div>`;
+      return;
+    }
+    const items = articles.map(a => `<div class="ticker-item">${escapeHtml(a.title)}</div>`).join('');
+    move.innerHTML = items + items;
+  }
+
+  function renderChips(articles) {
+    const cats = ['All', ...new Set(articles.map(a => sourceLabel(a.source)))];
+    const box = document.getElementById('chips');
+    box.innerHTML = cats.map(c =>
+      `<button type="button" class="chip${c === activeChip ? ' active' : ''}" data-chip="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+    ).join('');
+    box.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeChip = btn.getAttribute('data-chip');
+        renderStories();
+        renderChips(ALL);
+      });
+    });
+  }
+
+  function filtered() {
+    if (activeChip === 'All') return ALL.slice();
+    return ALL.filter(a => sourceLabel(a.source) === activeChip);
+  }
+
+  function renderStories() {
+    const leadSlot = document.getElementById('leadSlot');
+    const grid = document.getElementById('articles');
+    const emptySlot = document.getElementById('emptySlot');
+    const layout = document.getElementById('newsLayout');
+    const list = filtered();
+
+    leadSlot.innerHTML = '';
+    grid.innerHTML = '';
+    emptySlot.innerHTML = '';
+
+    if (!ALL.length) {
+      layout.classList.add('hidden');
+      document.getElementById('playerCard').style.display = 'none';
+      emptySlot.innerHTML = `
+        <div class="empty-box">
+          <div style="font-size:48px; margin-bottom:16px;">&#128240;</div>
+          <div class="article-title" style="font-size:24px; margin-bottom:12px;">No Episode for This Date</div>
+          <div class="article-summary" style="max-width:420px; margin:0 auto 24px;">
+            There was no podcast published on this day. Try picking another date from the archive or jump to the latest episode.
+          </div>
+          <a href="index.html" class="latest-btn" style="display:inline-block; padding:10px 24px; font-size:13px;">Latest News</a>
+        </div>`;
+      return;
+    }
+
+    layout.classList.remove('hidden');
+
+    if (!list.length) {
+      grid.innerHTML = `<div class="article"><div class="article-title">No stories in this section</div><div class="article-summary">Try another topic.</div></div>`;
+      return;
+    }
+
+    const lead = list[0];
+    const rest = list.slice(1);
+
+    leadSlot.innerHTML = `
+      <article class="lead-story">
+        <div class="flag">Top story</div>
+        <div class="article-title">${escapeHtml(lead.title)}</div>
+        <div class="article-summary">${escapeHtml(lead.summary)}</div>
+        ${metaHtml(lead)}
+      </article>`;
+
+    rest.forEach((a) => {
+      const div = document.createElement('article');
+      div.className = 'article';
+      div.innerHTML = `
+        <div class="cat">${escapeHtml(sourceLabel(a.source))}</div>
+        <div class="article-title">${escapeHtml(a.title)}</div>
+        <div class="article-summary">${escapeHtml(a.summary)}</div>
+        ${metaHtml(a)}`;
+      grid.appendChild(div);
+    });
+  }
+
+  function displayArticles() {
+    const { articles } = loadArticles();
+    ALL = articles;
+    document.getElementById('storyCount').textContent = String(articles.length || 0);
+    const scores = articles.map(a => parseInt(a.score, 10)).filter(n => !isNaN(n));
+    document.getElementById('topScore').textContent = scores.length ? Math.max(...scores) + '%' : '—';
+    renderBreaking(articles);
+    renderChips(articles);
+    renderStories();
+  }
+
+  displayArticles();
+
+  playFab.addEventListener('click', async () => {
+    if (audio.paused) {
+      try { await audio.play(); } catch (e) {}
+    } else {
+      audio.pause();
+    }
+  });
+  audio.addEventListener('play', () => { playFab.textContent = '❚❚'; });
+  audio.addEventListener('pause', () => { playFab.textContent = '▶'; });
+  document.getElementById('skipBack').addEventListener('click', () => {
+    audio.currentTime = Math.max(0, audio.currentTime - 15);
+  });
+  document.getElementById('skipFwd').addEventListener('click', () => {
+    audio.currentTime = Math.min(audio.duration || audio.currentTime + 15, audio.currentTime + 15);
+  });
+
+  const themeToggle = document.getElementById('themeToggle');
+  if (localStorage.getItem('theme') === 'light') document.body.classList.remove('dark');
+  updateToggleIcon();
+  themeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    updateToggleIcon();
+  });
+  function updateToggleIcon() {
+    themeToggle.innerHTML = document.body.classList.contains('dark') ? '&#9788;' : '&#9790;';
+  }
+</script>
+</body>
+</html>

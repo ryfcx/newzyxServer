@@ -352,7 +352,14 @@ def create_script(fname, ep, t=0):
 
 def create_site(ep, t=0):
     web_dir = workspace.generated_website_dir()
-    template_path = os.path.join(workspace.project_website_dir(), "template.html")
+    # Switch layouts without deleting the old one:
+    #   NEWZYX_SITE_TEMPLATE=template.html      (classic)
+    #   NEWZYX_SITE_TEMPLATE=template_news.html (Newsdesk)
+    template_name = os.environ.get("NEWZYX_SITE_TEMPLATE", "template.html").strip() or "template.html"
+    template_path = os.path.join(workspace.project_website_dir(), template_name)
+    if not os.path.isfile(template_path):
+        print(f"  Warning: template {template_name!r} missing, falling back to template.html")
+        template_path = os.path.join(workspace.project_website_dir(), "template.html")
 
     articles_json = json.dumps(
         [
