@@ -75,27 +75,30 @@ _DAY_CARDINALS = {
 }
 
 # Real silence / bed gaps, stitched with pydub rather than relying on inline TTS tags.
-INTRO_TO_VOICE_MS = 450
-INTRO_BEAT_GAP_MS = 280
-TOPIC_GAP_BEFORE_STING_MS = 450
-TOPIC_GAP_AFTER_STING_MS = 350
-BRIDGE_GAP_MS = 900
-QA_GAP_MS = 1500
+# Slightly snappier gaps so the show feels upbeat without rushing the quiz pause.
+INTRO_TO_VOICE_MS = 350
+INTRO_BEAT_GAP_MS = 200
+TOPIC_GAP_BEFORE_STING_MS = 350
+TOPIC_GAP_AFTER_STING_MS = 280
+BRIDGE_GAP_MS = 700
+QA_GAP_MS = 1200
 QA_ANSWER_GAP_MS = 3000
-QA_PAIR_GAP_MS = 800
-OUTRO_GAP_MS = 900
+QA_PAIR_GAP_MS = 650
+OUTRO_GAP_MS = 700
 
 _AUDIO_DIR = os.path.join(config.PROJECT_ROOT, "audio")
 _INTRO_MUSIC_PATH = os.path.join(_AUDIO_DIR, "intro_music.mp3")
 _TOPIC_STING_PATH = os.path.join(_AUDIO_DIR, "topic_transition.mp3")
 
-# Clearer, more consistent delivery — turbo slurs when speed is high / stability low.
+# Faster, more expressive delivery for energetic morning-show energy.
+# Multilingual v2 handles ~1.1 speed better than turbo; keep stability moderate
+# so she still sounds clear, not flat.
 _VOICE_SETTINGS = VoiceSettings(
-    stability=0.68,
-    similarity_boost=0.8,
-    style=0.0,
+    stability=0.52,
+    similarity_boost=0.78,
+    style=0.35,
     use_speaker_boost=True,
-    speed=0.9,
+    speed=1.12,
 )
 
 

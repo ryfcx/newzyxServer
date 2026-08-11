@@ -80,13 +80,15 @@ def _fix_script_flow(script):
 CRITICAL:
 - Make sure the script is 600-700 words long to make a 5 minute podcast.
 - Try your best to keep the original script content and do not add any extra information.
-- This script will be fed to elevenlabs text-to-speech. Prefer short, clear sentences (about 12-18 words). Avoid tongue-twisters, stacked clauses, and hard-to-say word clusters.
+- This script will be fed to elevenlabs text-to-speech. Prefer short, punchy sentences (about 10-16 words). Avoid tongue-twisters, stacked clauses, and hard-to-say word clusters.
+- Write with morning-show energy: enthusiastic, curious, and excited about the news — without sounding fake or screaming.
+- Prefer lively verbs and crisp transitions. Occasional exclamation points are fine when a story truly deserves them; don't overdo it.
 - Make the script flow well, remove any redundant Hello and Hi
 - Remove any greetings in the middle of the script. Do NOT introduce yourself or say your name in the story segments — the intro is handled separately.
 - Remove any duplicate news items both from the news details as well as related Q&A in the end.
 - Keep the [break] and [excited] tags and '...' markers as-is, just remove the extra greetings in the middle.
 - If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
-- After each "{TOPIC_SPLIT_MARKER}", start the next story with a clear spoken topic cue so listeners hear a clean handoff (rotate phrases like "Next up...", "Our next story...", "Switching gears...", "Also today...", "One more for you..."). Keep each cue short.
+- After each "{TOPIC_SPLIT_MARKER}", start the next story with a clear, upbeat topic cue (rotate phrases like "Next up!", "Our next story...", "Switching gears!", "Also today...", "One more for you..."). Keep each cue short.
 - Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
 - After "{BRIDGE_SPLIT_MARKER}", keep only a short quiz lead-in (no sign-off, no goodbye). The real outro is added separately after the quiz.
 - Do NOT add a closing/outro in the news, bridge, or quiz sections.
@@ -101,11 +103,11 @@ CRITICAL:
                 {
                     "role": "system",
                     "content": (
-                        f"You are {HOST_NAME}, a warm and engaging podcast host for kids aged 12-16, "
-                        "in the style of a friendly morning news anchor. You're enthusiastic, relatable, "
-                        "and treat your audience as intelligent people who deserve real news delivered in "
-                        "an exciting way. Think: charismatic teacher meets YouTube personality - informative "
-                        "but fun, with a warm, welcoming delivery and light personality between stories. "
+                        f"You are {HOST_NAME}, a high-energy morning news host for kids aged 12-16. "
+                        "You're excited about the stories, curious, and upbeat — like a sharp teen news "
+                        "anchor who can't wait to share what happened. Keep it clear and factual, but "
+                        "lean into enthusiasm and momentum between stories. Think: energetic morning show "
+                        "meets smart classroom host — fun, fast-moving, never dull. "
                         f"Your name is always {HOST_NAME}."
                     ),
                 },
@@ -207,9 +209,9 @@ def _canonical_intro_parts(t=0):
     inside a long date line (e.g. mangling 'August 8th' into gibberish).
     """
     return {
-        "greeting": "Good morning, and welcome to Newzyx!",
+        "greeting": "Good morning! Welcome to Newzyx!",
         "name": f"I'm {HOST_NAME}.",
-        "date": f"Today is {_spoken_date(t)}.",
+        "date": f"Today is {_spoken_date(t)} — let's dive into the news!",
     }
 
 
@@ -220,8 +222,8 @@ def _canonical_intro(t=0):
 
 def _default_bridge():
     return (
-        f"That wraps up today's top stories. I'm {HOST_NAME}, and now let's see "
-        "what you remember with today's quiz."
+        f"Those are today's top stories! I'm {HOST_NAME} — quick quiz time. "
+        "Let's see what you remember!"
     )
 
 
@@ -231,8 +233,8 @@ def _canonical_outro():
     on the last answer. No specific next-episode schedule promises.
     """
     return (
-        f"That's all for today's Newzyx. I'm {HOST_NAME}. "
-        "Thanks for listening, stay curious, and we'll catch you on the next one."
+        f"That's a wrap on today's Newzyx! I'm {HOST_NAME}. "
+        "Thanks for listening — stay curious, and catch you on the next one!"
     )
 
 
@@ -288,12 +290,12 @@ def create_script(fname, ep, t=0):
 
     # Reinforce clear spoken handoffs if polish dropped them.
     topic_cues = (
-        "Next up...",
-        "Our next story...",
-        "Switching gears...",
-        "Also today...",
-        "One more for you...",
-        "And finally...",
+        "Next up!",
+        "Our next story!",
+        "Switching gears!",
+        "Also today!",
+        "One more for you!",
+        "And finally!",
     )
     cue_re = re.compile(
         r"^(next up|our next story|switching gears|also today|one more for you|"
