@@ -85,7 +85,7 @@ CRITICAL:
 - CRITICAL for audio flow: Do NOT use ellipsis (...). Do NOT use em dashes. Prefer commas and periods. Use at most one exclamation mark per story.
 - Connect ideas so it sounds like continuous talking, not a list of slogans. Light transitions like "and", "so", "meanwhile" are good.
 - Make the script flow well, remove any redundant Hello and Hi
-- Remove any greetings in the middle of the script. Do NOT introduce yourself or say your name in the story segments — the intro is handled separately.
+- Remove any greetings in the middle of the script. Do NOT introduce yourself or say your name anywhere in this script (not in stories, bridge, or quiz) — the intro already covers that once.
 - Remove any duplicate news items both from the news details as well as related Q&A in the end.
 - Keep the [break] and [excited] tags as-is if present, but remove any '...' pause markers.
 - If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
@@ -109,7 +109,8 @@ CRITICAL:
                         "flow like a real radio host — not chopped slogans. Keep it clear and factual, "
                         "with momentum between stories. Think: energetic morning show that still sounds "
                         "human. "
-                        f"Your name is always {HOST_NAME}."
+                        f"CRITICAL: Do NOT say your name ({HOST_NAME}) anywhere in the script — "
+                        "the intro already introduces you once."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -220,21 +221,40 @@ def _canonical_intro(t=0):
 
 
 def _default_bridge():
-    return (
-        f"Those are today's top stories. I'm {HOST_NAME}, and it's quick quiz time. "
-        "Let's see what you remember."
-    )
+    return "Those are today's top stories, and it's quick quiz time. Let's see what you remember."
 
 
 def _canonical_outro():
     """
     Fixed closing after the quiz — never polished, so the episode doesn't end
-    on the last answer. No specific next-episode schedule promises.
+    on the last answer. Name is only spoken in the intro.
     """
     return (
-        f"That's a wrap on today's Newzyx. I'm {HOST_NAME}. "
+        "That's a wrap on today's Newzyx. "
         "Thanks for listening, stay curious, and catch you on the next one."
     )
+
+
+def _strip_host_name(text):
+    """Remove host self-intros so the name is only heard in the fixed daily open."""
+    if not text:
+        return text
+    text = re.sub(
+        rf"\b(?:I'm|I am)\s+{re.escape(HOST_NAME)}\b[,.]?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        rf"\b(?:this is|it's)\s+{re.escape(HOST_NAME)}\b[,.]?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(rf"\b{re.escape(HOST_NAME)}\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s{2,}", " ", text)
+    text = re.sub(r"\s+([,.!?])", r"\1", text)
+    return text.strip()
 
 
 def create_script(fname, ep, t=0):
@@ -305,11 +325,13 @@ def create_script(fname, ep, t=0):
         if not cue_re.match(topics[i]):
             topics[i] = f"{topic_cues[(i - 1) % len(topic_cues)]} {topics[i]}"
 
-    bridge = bridge.strip() or _default_bridge()
-    if HOST_NAME.lower() not in bridge.lower():
-        bridge = f"{bridge} I'm {HOST_NAME}."
+    topics = [_strip_host_name(t) for t in topics if _strip_host_name(t)]
+    bridge = _strip_host_name(bridge.strip() or _default_bridge()) or _default_bridge()
 
     qa_pairs = _parse_qa_pairs(qa_raw)
+    qa_pairs = [
+        (_strip_host_name(q) or q, _strip_host_name(a) or a) for q, a in qa_pairs
+    ]
     if qa_raw.strip() and not qa_pairs:
         print("  Warning: Q/A markers missing after polish, quiz section will have no answer pause")
 

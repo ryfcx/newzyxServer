@@ -100,6 +100,16 @@ _VOICE_SETTINGS = VoiceSettings(
 )
 
 
+_ONES = [
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen",
+]
+_TENS = [
+    "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+]
+
+
 def _year_words(year):
     if 2000 <= year <= 2099:
         ones = year % 100
@@ -111,6 +121,39 @@ def _year_words(year):
     return str(year)
 
 
+def _under_1000_words(n):
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return _TENS[tens] if ones == 0 else f"{_TENS[tens]} {_ONES[ones]}"
+    hundreds, rest = divmod(n, 100)
+    if rest == 0:
+        return f"{_ONES[hundreds]} hundred"
+    return f"{_ONES[hundreds]} hundred {_under_1000_words(rest)}"
+
+
+def _int_to_words(n):
+    """Spell integers so TTS says 'fifty thousand' instead of '50 oh oh oh'."""
+    if n < 0:
+        return "minus " + _int_to_words(-n)
+    if n < 1000:
+        return _under_1000_words(n)
+    scales = [
+        (1_000_000_000, "billion"),
+        (1_000_000, "million"),
+        (1_000, "thousand"),
+    ]
+    parts = []
+    for value, label in scales:
+        if n >= value:
+            qty, n = divmod(n, value)
+            parts.append(f"{_under_1000_words(qty)} {label}")
+    if n:
+        parts.append(_under_1000_words(n))
+    return " ".join(parts)
+
+
 def _apply_pronunciation_fixes(text):
     for pattern, replacement in _PRONOUNCE_SUBS:
         text = pattern.sub(replacement, text)
@@ -118,7 +161,7 @@ def _apply_pronunciation_fixes(text):
 
 
 def _normalize_hard_tts_phrases(text):
-    """Rewrite date/number patterns that ElevenLabs turbo commonly slurs."""
+    """Rewrite date/number patterns that TTS commonly mangles."""
     # 8th / 08th → eight
     def _ordinal_num(match):
         n = int(match.group(1))
@@ -135,7 +178,7 @@ def _normalize_hard_tts_phrases(text):
         flags=re.I,
     )
 
-    # years 20xx as digits → spoken words
+    # years 20xx as digits → spoken words (before generic number expansion)
     text = re.sub(
         r"\b(20\d{2})\b",
         lambda m: _year_words(int(m.group(1))),
@@ -149,6 +192,29 @@ def _normalize_hard_tts_phrases(text):
         text,
         flags=re.I,
     )
+
+    # Comma-formatted numbers: 50,000 → fifty thousand
+    text = re.sub(
+        r"\b\d{1,3}(?:,\d{3})+\b",
+        lambda m: _int_to_words(int(m.group(0).replace(",", ""))),
+        text,
+    )
+
+    # Plain integers with 4+ digits (and not already handled years): 50000 → fifty thousand
+    text = re.sub(
+        r"\b\d{4,}\b",
+        lambda m: _int_to_words(int(m.group(0))),
+        text,
+    )
+
+    # Decimals like 3.5 → three point five (avoid digit-by-digit mush)
+    def _decimal_words(match):
+        whole, frac = match.group(1), match.group(2)
+        whole_words = _int_to_words(int(whole))
+        frac_words = " ".join(_ONES[int(d)] for d in frac)
+        return f"{whole_words} point {frac_words}"
+
+    text = re.sub(r"\b(\d+)\.(\d+)\b", _decimal_words, text)
     return text
 
 
