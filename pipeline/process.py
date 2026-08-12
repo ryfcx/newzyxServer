@@ -50,7 +50,12 @@ Vary your openings. Prefer natural spoken sentences (about 12-18 words) that flo
 other. Avoid ellipsis (...), em dashes, and choppy slogan-style fragments. Avoid tongue-twisters
 and stacked clauses. Light, fitting wit is welcome, but never at the expense of clarity.
 Sound curious and upbeat, not flat or robotic.
+
 Create one fact-based quiz question with a short answer.
+CRITICAL for the quiz:
+- Write podScript first, then base the question ONLY on facts you actually included in podScript.
+- The listener must be able to answer from the podcast segment alone.
+- Do NOT ask about names, numbers, places, ships, people, or details that are in the full article but missing from podScript.
 
 Return JSON matching this schema: {json_schema}
 

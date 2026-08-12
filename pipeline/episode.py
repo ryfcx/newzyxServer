@@ -92,9 +92,10 @@ CRITICAL:
 - After each "{TOPIC_SPLIT_MARKER}", start the next story with a short natural cue (rotate phrases like "Next up,", "Our next story,", "Switching gears,", "Also today,", "One more for you,"). No ellipsis.
 - Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
 - After "{BRIDGE_SPLIT_MARKER}", keep only a short quiz lead-in (no sign-off, no goodbye). The real outro is added separately after the quiz.
-- Do NOT add a closing/outro in the news, bridge, or quiz sections.
+- Do NOT add a closing/outro in the news or bridge sections.
+- Do NOT invent quiz questions here — the quiz is generated later from the final spoken stories.
 - CRITICAL: Keep every literal marker exactly as-is, in the same order, with no spaces added inside them — they are used programmatically to split the audio:
-  "{TOPIC_SPLIT_MARKER}", "{BRIDGE_SPLIT_MARKER}", "{QA_SPLIT_MARKER}", "{QA_Q_MARKER}", "{QA_A_MARKER}".
+  "{TOPIC_SPLIT_MARKER}", "{BRIDGE_SPLIT_MARKER}", "{QA_SPLIT_MARKER}".
 
 {script} """
 
@@ -257,9 +258,92 @@ def _strip_host_name(text):
     return text.strip()
 
 
+def _generate_quiz_from_topics(topics):
+    """
+    Build quiz Q&A from the final spoken story text only.
+
+    Avoids asking about article details that never made it into the podcast script.
+    """
+    if not topics:
+        return []
+    try:
+        client = OpenAI(api_key=config.OPENAI_API_KEY)
+        model = config.OPENAI_MODEL
+        numbered = "\n\n".join(
+            f"STORY {i}:\n{topic}" for i, topic in enumerate(topics, 1)
+        )
+        schema = {
+            "name": "episode_quiz",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question": {"type": "string"},
+                                "answer": {"type": "string"},
+                            },
+                            "required": ["question", "answer"],
+                            "additionalProperties": False,
+                        },
+                    }
+                },
+                "required": ["items"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        }
+        prompt = f"""
+You write the end-of-episode quiz for a kids news podcast.
+
+For EACH story below, write exactly one question and one short answer.
+CRITICAL rules:
+- Use ONLY facts explicitly stated in that story's text.
+- A listener who heard only the podcast must be able to answer.
+- Do NOT use outside knowledge or details that are not in the story text.
+- Prefer concrete names, numbers, places, or clear facts that were actually spoken.
+- Keep questions kid-friendly and answers short (a few words to one short sentence).
+- Return exactly {len(topics)} items, in the same order as the stories.
+
+{numbered}
+"""
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You create fair podcast quizzes. Every answer must be findable "
+                        "in the provided story text alone."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_schema", "json_schema": schema},
+        )
+        data = json.loads(response.choices[0].message.content)
+        items = data.get("items") or []
+        pairs = []
+        for item in items:
+            q = (item.get("question") or "").strip()
+            a = (item.get("answer") or "").strip()
+            if q and a:
+                pairs.append((q, a))
+        if len(pairs) != len(topics):
+            print(
+                f"  Warning: quiz regen returned {len(pairs)} items for {len(topics)} stories"
+            )
+            return []
+        return pairs
+    except Exception as e:
+        print(f"  Quiz regen from spoken script failed ({e})")
+        return []
+
+
 def create_script(fname, ep, t=0):
     tag1 = " [silence] "
-    tag2 = " [excited] "
 
     # Intro is applied after polish so the LLM can't drop or rename the host.
     intro_parts = _canonical_intro_parts(t)
@@ -268,12 +352,9 @@ def create_script(fname, ep, t=0):
     bridge_seed = _default_bridge()
 
     news_parts = [a["pod_script"] for a in ep]
-    qa_parts = [
-        QA_Q_MARKER + a["pod_question"] + tag1 + QA_A_MARKER + tag2 + a["pod_answer"]
-        for a in ep
-    ]
 
     # Markers sit between stories so pydub can stitch real topic transitions.
+    # Quiz is generated later from the final spoken stories (not the raw article).
     topics_body = TOPIC_SPLIT_MARKER.join(news_parts)
 
     body = (
@@ -283,19 +364,16 @@ def create_script(fname, ep, t=0):
         + bridge_seed
         + tag1
         + QA_SPLIT_MARKER
-        + tag1
-        + f"{tag1} ".join(qa_parts)
-        + tag1
     )
 
     body = _fix_script_flow(body)
     body = utils.cleanupTxt(body)
 
     if QA_SPLIT_MARKER in body:
-        news_raw, qa_raw = body.split(QA_SPLIT_MARKER, 1)
+        news_raw, _qa_ignored = body.split(QA_SPLIT_MARKER, 1)
     else:
         print("  Warning: QA split marker missing after polish, using single news segment")
-        news_raw, qa_raw = body, ""
+        news_raw = body
 
     if BRIDGE_SPLIT_MARKER in news_raw:
         topics_raw, bridge = news_raw.split(BRIDGE_SPLIT_MARKER, 1)
@@ -328,12 +406,18 @@ def create_script(fname, ep, t=0):
     topics = [_strip_host_name(t) for t in topics if _strip_host_name(t)]
     bridge = _strip_host_name(bridge.strip() or _default_bridge()) or _default_bridge()
 
-    qa_pairs = _parse_qa_pairs(qa_raw)
-    qa_pairs = [
-        (_strip_host_name(q) or q, _strip_host_name(a) or a) for q, a in qa_pairs
-    ]
-    if qa_raw.strip() and not qa_pairs:
-        print("  Warning: Q/A markers missing after polish, quiz section will have no answer pause")
+    qa_pairs = _generate_quiz_from_topics(topics)
+    if not qa_pairs:
+        # Fallback only if regen fails — may still drift from spoken text.
+        print("  Warning: using original article quiz as fallback")
+        qa_pairs = [
+            (
+                _strip_host_name(a["pod_question"]) or a["pod_question"],
+                _strip_host_name(a["pod_answer"]) or a["pod_answer"],
+            )
+            for a in ep
+            if a["pod_question"] and a["pod_answer"]
+        ]
 
     script_parts = {
         "intro": intro,
