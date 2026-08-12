@@ -74,31 +74,29 @@ _DAY_CARDINALS = {
     31: "thirty one",
 }
 
-# Real silence / bed gaps, stitched with pydub rather than relying on inline TTS tags.
-# Slightly snappier gaps so the show feels upbeat without rushing the quiz pause.
-INTRO_TO_VOICE_MS = 350
-INTRO_BEAT_GAP_MS = 200
-TOPIC_GAP_BEFORE_STING_MS = 350
-TOPIC_GAP_AFTER_STING_MS = 280
-BRIDGE_GAP_MS = 700
-QA_GAP_MS = 1200
+# Real silence / bed gaps only between major sections (stories, quiz, outro).
+# Do NOT insert silence mid-sentence — that is what made delivery sound choppy.
+INTRO_TO_VOICE_MS = 300
+TOPIC_GAP_BEFORE_STING_MS = 280
+TOPIC_GAP_AFTER_STING_MS = 220
+BRIDGE_GAP_MS = 550
+QA_GAP_MS = 1000
 QA_ANSWER_GAP_MS = 3000
-QA_PAIR_GAP_MS = 650
-OUTRO_GAP_MS = 700
+QA_PAIR_GAP_MS = 550
+OUTRO_GAP_MS = 550
 
 _AUDIO_DIR = os.path.join(config.PROJECT_ROOT, "audio")
 _INTRO_MUSIC_PATH = os.path.join(_AUDIO_DIR, "intro_music.mp3")
 _TOPIC_STING_PATH = os.path.join(_AUDIO_DIR, "topic_transition.mp3")
 
-# Faster, more expressive delivery for energetic morning-show energy.
-# Multilingual v2 handles ~1.1 speed better than turbo; keep stability moderate
-# so she still sounds clear, not flat.
+# Energetic but steady: higher stability + lower style = fewer weird mid-word pauses.
+# Speed stays quick without the stop-start feel of high style exaggeration.
 _VOICE_SETTINGS = VoiceSettings(
-    stability=0.52,
-    similarity_boost=0.78,
-    style=0.35,
+    stability=0.62,
+    similarity_boost=0.8,
+    style=0.15,
     use_speaker_boost=True,
-    speed=1.12,
+    speed=1.08,
 )
 
 
@@ -155,18 +153,22 @@ def _normalize_hard_tts_phrases(text):
 
 
 def _prepare_tts_text(text):
-    """Light cleanup so ElevenLabs is less likely to slur or rush words."""
+    """Cleanup that favors natural spoken flow (fewer fake pauses)."""
     text = (text or "").strip()
     if not text:
         return text
     text = _normalize_hard_tts_phrases(text)
     text = _apply_pronunciation_fixes(text)
+    # Em/en dashes and ellipses make multilingual TTS take long awkward pauses.
+    text = text.replace("—", ", ").replace("–", ", ").replace("…", ", ")
+    text = re.sub(r"\.{3,}", ", ", text)
+    text = re.sub(r"!{2,}", "!", text)
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\s*,\s*", ", ", text)
     text = re.sub(r"\s*\.\s*", ". ", text)
     text = re.sub(r"\s*\?\s*", "? ", text)
     text = re.sub(r"\s*!\s*", "! ", text)
-    text = text.replace("...", "... ")
+    text = re.sub(r"\s*,\s*,+", ", ", text)
     return text.strip()
 
 
@@ -206,40 +208,27 @@ def _match_voice(seg, voice_ref):
 
 def _append_intro(segments, client, script_parts):
     """
-    Speak greeting, name, and date as separate clips so the host name is clear
-    and the date line can't smear into the name.
+    Speak the full intro as one continuous clip so greeting/name/date flow
+    like a real host open (separate clips sounded choppy).
     """
     intro_parts = script_parts.get("intro_parts") or {}
-    greeting = (intro_parts.get("greeting") or "").strip()
-    name = (intro_parts.get("name") or "").strip()
-    date = (intro_parts.get("date") or "").strip()
+    pieces = [
+        (intro_parts.get("greeting") or "").strip(),
+        (intro_parts.get("name") or "").strip(),
+        (intro_parts.get("date") or "").strip(),
+    ]
+    intro_text = " ".join(p for p in pieces if p) or (script_parts.get("intro") or "").strip()
 
     intro_music = _load_bed(_INTRO_MUSIC_PATH, target_dbfs=-16.0)
-    beat_gap = AudioSegment.silent(duration=INTRO_BEAT_GAP_MS)
+    intro_audio = _synthesize(client, intro_text) if intro_text else AudioSegment.silent(duration=1)
+    ref = intro_audio
 
-    if greeting:
-        greeting_audio = _synthesize(client, greeting)
-    elif script_parts.get("intro"):
-        # Fallback for older callers: one blob.
-        greeting_audio = _synthesize(client, script_parts["intro"])
-        name = ""
-        date = ""
-    else:
-        greeting_audio = AudioSegment.silent(duration=1)
-
-    ref = greeting_audio
     if intro_music is not None:
         music = _match_voice(intro_music.fade_out(600), ref)
         segments.append(music)
         segments.append(AudioSegment.silent(duration=INTRO_TO_VOICE_MS))
 
-    segments.append(greeting_audio)
-    if name:
-        segments.append(beat_gap)
-        segments.append(_synthesize(client, name))
-    if date:
-        segments.append(beat_gap)
-        segments.append(_synthesize(client, date))
+    segments.append(intro_audio)
     return ref
 
 
@@ -291,22 +280,8 @@ def tts(script_parts, t=0):
         if topic_sting is not None:
             segments.append(_match_voice(topic_sting, ref))
             segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
-        # Keep "I'm Zara" audible in the bridge too: speak name beat if present.
-        if re.search(r"\bI'm\s+Zara\b", bridge, flags=re.I):
-            before, after = re.split(r"\bI'm\s+Zara\b", bridge, maxsplit=1, flags=re.I)
-            if before.strip():
-                segments.append(_synthesize(client, before.strip()))
-                segments.append(AudioSegment.silent(duration=INTRO_BEAT_GAP_MS))
-            segments.append(_synthesize(client, "I'm Zara."))
-            segments.append(AudioSegment.silent(duration=INTRO_BEAT_GAP_MS))
-            if after.strip():
-                # strip leading punctuation/conjunction leftovers
-                after = re.sub(r"^[\s,]+and\s+", "", after.strip(), flags=re.I)
-                after = re.sub(r"^[\s,]+", "", after)
-                if after:
-                    segments.append(_synthesize(client, after))
-        else:
-            segments.append(_synthesize(client, bridge))
+        # One continuous clip — splitting on the host name made the bridge sound robotic.
+        segments.append(_synthesize(client, bridge))
 
     if qa_pairs:
         segments.append(AudioSegment.silent(duration=QA_GAP_MS))
@@ -324,22 +299,7 @@ def tts(script_parts, t=0):
         if topic_sting is not None:
             segments.append(_match_voice(topic_sting, ref))
             segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
-        # Keep host name clear in the sign-off.
-        name_pat = rf"\bI'm\s+{re.escape(HOST_NAME)}\b"
-        if re.search(name_pat, outro, flags=re.I):
-            before, after = re.split(name_pat, outro, maxsplit=1, flags=re.I)
-            if before.strip():
-                segments.append(_synthesize(client, before.strip()))
-                segments.append(AudioSegment.silent(duration=INTRO_BEAT_GAP_MS))
-            segments.append(_synthesize(client, f"I'm {HOST_NAME}."))
-            segments.append(AudioSegment.silent(duration=INTRO_BEAT_GAP_MS))
-            if after.strip():
-                after = re.sub(r"^[\s,.]+", "", after.strip())
-                if after:
-                    segments.append(_synthesize(client, after))
-        else:
-            segments.append(_synthesize(client, outro))
-        # Soft music bed under the end, if available.
+        segments.append(_synthesize(client, outro))
         intro_music = _load_bed(_INTRO_MUSIC_PATH, target_dbfs=-18.0)
         if intro_music is not None:
             bed = _match_voice(intro_music.fade_in(200).fade_out(800), ref)

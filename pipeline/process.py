@@ -46,10 +46,10 @@ Summarize the article in 7-8 simple, factual, positive sentences for a young aud
 Write a 140-150 word podcast script segment in the style of an energetic, enthusiastic morning
 news anchor for kids — conversational, educational, fun, factual, and excited about the story.
 Jump straight into the story (no greetings, no "Hey kids", no "Imagine this", no host name).
-Vary your openings. Prefer short punchy sentences that are easy to speak aloud (about 10-16
-words). Avoid tongue-twisters and stacked clauses. Light, fitting wit or a natural turn of
-phrase tied to the story is welcome (e.g. comparing a launch to "taking off like a rocket"),
-but never at the expense of clarity or accuracy. Sound curious and upbeat, not flat.
+Vary your openings. Prefer natural spoken sentences (about 12-18 words) that flow into each
+other. Avoid ellipsis (...), em dashes, and choppy slogan-style fragments. Avoid tongue-twisters
+and stacked clauses. Light, fitting wit is welcome, but never at the expense of clarity.
+Sound curious and upbeat, not flat or robotic.
 Create one fact-based quiz question with a short answer.
 
 Return JSON matching this schema: {json_schema}

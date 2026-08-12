@@ -80,15 +80,16 @@ def _fix_script_flow(script):
 CRITICAL:
 - Make sure the script is 600-700 words long to make a 5 minute podcast.
 - Try your best to keep the original script content and do not add any extra information.
-- This script will be fed to elevenlabs text-to-speech. Prefer short, punchy sentences (about 10-16 words). Avoid tongue-twisters, stacked clauses, and hard-to-say word clusters.
-- Write with morning-show energy: enthusiastic, curious, and excited about the news — without sounding fake or screaming.
-- Prefer lively verbs and crisp transitions. Occasional exclamation points are fine when a story truly deserves them; don't overdo it.
+- This script will be fed to elevenlabs text-to-speech. Write for natural spoken flow: clear sentences that connect smoothly (about 12-18 words). Avoid tongue-twisters and stacked clauses.
+- Write with morning-show energy: enthusiastic, curious, and excited — but still human and conversational, not shouty or choppy.
+- CRITICAL for audio flow: Do NOT use ellipsis (...). Do NOT use em dashes. Prefer commas and periods. Use at most one exclamation mark per story.
+- Connect ideas so it sounds like continuous talking, not a list of slogans. Light transitions like "and", "so", "meanwhile" are good.
 - Make the script flow well, remove any redundant Hello and Hi
 - Remove any greetings in the middle of the script. Do NOT introduce yourself or say your name in the story segments — the intro is handled separately.
 - Remove any duplicate news items both from the news details as well as related Q&A in the end.
-- Keep the [break] and [excited] tags and '...' markers as-is, just remove the extra greetings in the middle.
+- Keep the [break] and [excited] tags as-is if present, but remove any '...' pause markers.
 - If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
-- After each "{TOPIC_SPLIT_MARKER}", start the next story with a clear, upbeat topic cue (rotate phrases like "Next up!", "Our next story...", "Switching gears!", "Also today...", "One more for you..."). Keep each cue short.
+- After each "{TOPIC_SPLIT_MARKER}", start the next story with a short natural cue (rotate phrases like "Next up,", "Our next story,", "Switching gears,", "Also today,", "One more for you,"). No ellipsis.
 - Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
 - After "{BRIDGE_SPLIT_MARKER}", keep only a short quiz lead-in (no sign-off, no goodbye). The real outro is added separately after the quiz.
 - Do NOT add a closing/outro in the news, bridge, or quiz sections.
@@ -104,10 +105,10 @@ CRITICAL:
                     "role": "system",
                     "content": (
                         f"You are {HOST_NAME}, a high-energy morning news host for kids aged 12-16. "
-                        "You're excited about the stories, curious, and upbeat — like a sharp teen news "
-                        "anchor who can't wait to share what happened. Keep it clear and factual, but "
-                        "lean into enthusiasm and momentum between stories. Think: energetic morning show "
-                        "meets smart classroom host — fun, fast-moving, never dull. "
+                        "You're excited, curious, and upbeat, but you speak in a natural conversational "
+                        "flow like a real radio host — not chopped slogans. Keep it clear and factual, "
+                        "with momentum between stories. Think: energetic morning show that still sounds "
+                        "human. "
                         f"Your name is always {HOST_NAME}."
                     ),
                 },
@@ -190,7 +191,7 @@ def _spoken_year(year):
 
 
 def _spoken_date(t=0):
-    """Plain spoken date — avoid ordinals like 'eighth' that TTS often mangles."""
+    """Plain spoken date — avoid ordinals and extra commas that create odd pauses."""
     from datetime import datetime, timedelta
 
     d = datetime.now() - timedelta(days=t)
@@ -198,20 +199,18 @@ def _spoken_date(t=0):
     month = d.strftime("%B")
     day = _DAY_WORDS.get(d.day, str(d.day))
     year = _spoken_year(d.year)
-    return f"{weekday}, {month} {day}, {year}"
+    # One comma only: fewer mid-date pauses from the TTS engine.
+    return f"{weekday} {month} {day}, {year}"
 
 
 def _canonical_intro_parts(t=0):
     """
-    Fixed daily open as separate spoken beats.
-
-    Kept out of the polish LLM, and split so TTS can't bury the host name
-    inside a long date line (e.g. mangling 'August 8th' into gibberish).
+    Fixed daily open (kept out of polish). Spoken as one continuous TTS clip.
     """
     return {
-        "greeting": "Good morning! Welcome to Newzyx!",
+        "greeting": "Good morning, and welcome to Newzyx!",
         "name": f"I'm {HOST_NAME}.",
-        "date": f"Today is {_spoken_date(t)} — let's dive into the news!",
+        "date": f"Today is {_spoken_date(t)}, so let's dive into the news.",
     }
 
 
@@ -222,8 +221,8 @@ def _canonical_intro(t=0):
 
 def _default_bridge():
     return (
-        f"Those are today's top stories! I'm {HOST_NAME} — quick quiz time. "
-        "Let's see what you remember!"
+        f"Those are today's top stories. I'm {HOST_NAME}, and it's quick quiz time. "
+        "Let's see what you remember."
     )
 
 
@@ -233,8 +232,8 @@ def _canonical_outro():
     on the last answer. No specific next-episode schedule promises.
     """
     return (
-        f"That's a wrap on today's Newzyx! I'm {HOST_NAME}. "
-        "Thanks for listening — stay curious, and catch you on the next one!"
+        f"That's a wrap on today's Newzyx. I'm {HOST_NAME}. "
+        "Thanks for listening, stay curious, and catch you on the next one."
     )
 
 
@@ -290,12 +289,12 @@ def create_script(fname, ep, t=0):
 
     # Reinforce clear spoken handoffs if polish dropped them.
     topic_cues = (
-        "Next up!",
-        "Our next story!",
-        "Switching gears!",
-        "Also today!",
-        "One more for you!",
-        "And finally!",
+        "Next up,",
+        "Our next story,",
+        "Switching gears,",
+        "Also today,",
+        "One more for you,",
+        "And finally,",
     )
     cue_re = re.compile(
         r"^(next up|our next story|switching gears|also today|one more for you|"
