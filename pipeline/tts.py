@@ -254,7 +254,7 @@ def _synthesize(client, text):
 
 
 def _load_bed(path, target_dbfs=-18.0):
-    """Load a music bed/sting; return None if missing. Soften loud beds."""
+    """Load a music bed/sting and normalize loudness so short effects stay audible."""
     if not path or not os.path.isfile(path) or os.path.getsize(path) == 0:
         return None
     try:
@@ -262,14 +262,35 @@ def _load_bed(path, target_dbfs=-18.0):
     except Exception as e:
         print(f"  Warning: could not load audio bed {path}: {e}")
         return None
-    if bed.dBFS != float("-inf") and bed.dBFS > target_dbfs:
-        bed = bed.apply_gain(target_dbfs - bed.dBFS)
+    if bed.dBFS == float("-inf"):
+        return None
+    bed = bed.apply_gain(target_dbfs - bed.dBFS)
     return bed
 
 
 def _match_voice(seg, voice_ref):
-    """Match sample rate/channels to voice clips so concatenation is clean."""
-    return seg.set_frame_rate(voice_ref.frame_rate).set_channels(voice_ref.channels)
+    """Match sample rate to voice clips so concatenation is clean.
+
+    Keep the sting's original channel count — collapsing stereo to mono
+    can make a short transition effect almost inaudible.
+    """
+    if voice_ref is None:
+        return seg
+    return seg.set_frame_rate(voice_ref.frame_rate)
+
+
+def _append_sting(segments, sting, voice_ref, before_ms=None, after_ms=None):
+    """Insert the topic transition sound with short padding around it."""
+    if sting is None:
+        segments.append(AudioSegment.silent(duration=700))
+        return
+    if before_ms is None:
+        before_ms = TOPIC_GAP_BEFORE_STING_MS
+    if after_ms is None:
+        after_ms = TOPIC_GAP_AFTER_STING_MS
+    segments.append(AudioSegment.silent(duration=before_ms))
+    segments.append(_match_voice(sting, voice_ref))
+    segments.append(AudioSegment.silent(duration=after_ms))
 
 
 def _append_intro(segments, client, script_parts):
@@ -325,7 +346,9 @@ def tts(script_parts, t=0):
         topics = []
 
     segments = []
-    topic_sting = _load_bed(_TOPIC_STING_PATH, target_dbfs=-20.0)
+    topic_sting = _load_bed(_TOPIC_STING_PATH, target_dbfs=-12.0)
+    if topic_sting is None:
+        print("  Warning: topic transition sting missing; using silence between stories")
     ref = _append_intro(segments, client, script_parts)
 
     for i, topic in enumerate(topics):
@@ -333,19 +356,17 @@ def tts(script_parts, t=0):
         if i == 0:
             segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
         else:
-            segments.append(AudioSegment.silent(duration=TOPIC_GAP_BEFORE_STING_MS))
-            if topic_sting is not None:
-                segments.append(_match_voice(topic_sting, ref))
-                segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
-            else:
-                segments.append(AudioSegment.silent(duration=700))
+            _append_sting(segments, topic_sting, ref)
         segments.append(topic_audio)
 
     if bridge:
-        segments.append(AudioSegment.silent(duration=BRIDGE_GAP_MS))
-        if topic_sting is not None:
-            segments.append(_match_voice(topic_sting, ref))
-            segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
+        _append_sting(
+            segments,
+            topic_sting,
+            ref,
+            before_ms=BRIDGE_GAP_MS,
+            after_ms=TOPIC_GAP_AFTER_STING_MS,
+        )
         # One continuous clip — splitting on the host name made the bridge sound robotic.
         segments.append(_synthesize(client, bridge))
 
@@ -361,10 +382,13 @@ def tts(script_parts, t=0):
             segments.append(_synthesize(client, answer))
 
     if outro:
-        segments.append(AudioSegment.silent(duration=OUTRO_GAP_MS))
-        if topic_sting is not None:
-            segments.append(_match_voice(topic_sting, ref))
-            segments.append(AudioSegment.silent(duration=TOPIC_GAP_AFTER_STING_MS))
+        _append_sting(
+            segments,
+            topic_sting,
+            ref,
+            before_ms=OUTRO_GAP_MS,
+            after_ms=TOPIC_GAP_AFTER_STING_MS,
+        )
         segments.append(_synthesize(client, outro))
         intro_music = _load_bed(_INTRO_MUSIC_PATH, target_dbfs=-18.0)
         if intro_music is not None:
