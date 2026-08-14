@@ -30,23 +30,32 @@
     margin: 0 auto;
     display: flex;
     align-items: center;
-    height: 70px;
+    min-height: 96px;
     gap: 16px;
+    padding: 10px 0;
   }
 
-  .logo { height: 42px; width: 42px; filter: brightness(1.2); }
+  .brand {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    height: 72px;
+    width: auto;
+    max-width: min(240px, 48vw);
+    object-fit: contain;
+    display: block;
+    filter: brightness(1.2);
+  }
 
   .masthead {
     display: flex;
     flex-direction: column;
-  }
-
-  .masthead-title {
-    font-family: "Newsreader", Georgia, serif;
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: #fff;
+    min-width: 0;
   }
 
   .masthead-tagline {
@@ -55,7 +64,6 @@
     text-transform: uppercase;
     letter-spacing: 2.5px;
     color: #29abe2;
-    margin-top: -2px;
   }
 
   .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
@@ -260,7 +268,8 @@
     .two-col { grid-template-columns: 1fr; }
     .two-col .article:nth-child(odd) { border-right: none; }
     .lead-story .article-title { font-size: 22px; }
-    .masthead-title { font-size: 20px; }
+    .header-inner { min-height: 84px; }
+    .logo { height: 56px; max-width: min(180px, 50vw); }
     .player-box { flex-direction: column; align-items: flex-start; }
   }
 </style>
@@ -269,9 +278,10 @@
 
 <header>
   <div class="header-inner">
-    <a href="index.html"><img src="NewzyxV2-removebg.png" class="logo" alt="Newzyx"></a>
+    <a class="brand" href="index.html">
+      <img src="NewzyxV2-removebg.png" class="logo" alt="Newzyx">
+    </a>
     <div class="masthead">
-      <div class="masthead-title">NEWZYX</div>
       <div class="masthead-tagline">Real news for curious kids</div>
     </div>
     <div class="header-right">
@@ -349,10 +359,48 @@
       days[wd] + ' Edition \u2014 ' + months[m] + ' ' + day + ', ' + y;
   })();
 
-  function displayArticles() {
+  const SAMPLE_ARTICLES = [
+    {
+      title: "Scientists find a rare glowing deep-sea worm",
+      summary: "Researchers exploring a dark trench spotted a tiny worm that lights up like a night-light. The discovery could help engineers design better underwater sensors.",
+      score: 94, dt: "2026-08-14", source: "popsci", url: "https://example.com/deep-sea-worm"
+    },
+    {
+      title: "Young athletes smash records at the junior games",
+      summary: "Teens from around the world raced, jumped, and cheered their way through a weekend of surprising finishes and brand-new personal bests.",
+      score: 92, dt: "2026-08-14", source: "bbc", url: "https://example.com/junior-games"
+    },
+    {
+      title: "A new telescope snaps the sharpest Moon photo yet",
+      summary: "The image is so clear you can almost count the craters. Astronomers say it will help map future landing spots.",
+      score: 91, dt: "2026-08-14", source: "national-geographic", url: "https://example.com/moon-photo"
+    },
+    {
+      title: "City kids build a park for bees and butterflies",
+      summary: "Students turned an empty lot into a buzzing habitat — and learned how tiny pollinators keep our food growing.",
+      score: 90, dt: "2026-08-14", source: "guardian", url: "https://example.com/bee-park"
+    },
+    {
+      title: "A 12-year-old coder ships an app that helps classmates study",
+      summary: "What started as a homework helper is now used by kids in three countries. The app turns flashcards into a two-minute daily quiz.",
+      score: 89, dt: "2026-08-14", source: "wired", url: "https://example.com/study-app"
+    }
+  ];
+
+  function loadArticles() {
     const el = document.getElementById('articleData');
-    let articles;
-    try { articles = el ? JSON.parse(el.textContent) : null; } catch(e) { articles = null; }
+    if (!el) return SAMPLE_ARTICLES;
+    try {
+      const articles = JSON.parse(el.textContent);
+      if (!articles || !articles.length) return [];
+      return articles;
+    } catch (e) {
+      return SAMPLE_ARTICLES;
+    }
+  }
+
+  function displayArticles() {
+    const articles = loadArticles();
     const leadContainer = document.getElementById('lead');
     const gridContainer = document.getElementById('articles');
 
