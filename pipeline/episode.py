@@ -71,34 +71,31 @@ def select_articles(news_date=None):
     return ep
 
 
-def _fix_script_flow(script):
+def _polish_segment(text, kind="story"):
+    """Polish one story or the quiz lead-in. Markers are never sent to the LLM."""
+    if not text or not text.strip():
+        return text
     try:
         client = OpenAI(api_key=config.OPENAI_API_KEY)
         model = config.OPENAI_MODEL
-
-        prompt = f"""
-CRITICAL:
-- Make sure the script is 600-700 words long to make a 5 minute podcast.
-- Try your best to keep the original script content and do not add any extra information.
-- This script will be fed to elevenlabs text-to-speech. Write for natural spoken flow: clear sentences that connect smoothly (about 12-18 words). Avoid tongue-twisters and stacked clauses.
-- Write with morning-show energy: enthusiastic, curious, and excited — but still human and conversational, not shouty or choppy.
-- CRITICAL for audio flow: Do NOT use ellipsis (...). Do NOT use em dashes. Prefer commas and periods. Use at most one exclamation mark per story.
-- Connect ideas so it sounds like continuous talking, not a list of slogans. Light transitions like "and", "so", "meanwhile" are good.
-- Make the script flow well, remove any redundant Hello and Hi
-- Remove any greetings in the middle of the script. Do NOT introduce yourself or say your name anywhere in this script (not in stories, bridge, or quiz) — the intro already covers that once.
-- Remove any duplicate news items both from the news details as well as related Q&A in the end.
-- Keep the [break] and [excited] tags as-is if present, but remove any '...' pause markers.
-- If every new story starts with 'did you know' or 'imagine' or 'hey kids', feel free to add variety to start of these stories.
-- After each "{TOPIC_SPLIT_MARKER}", start the next story with a short natural cue (rotate phrases like "Next up,", "Our next story,", "Switching gears,", "Also today,", "One more for you,"). No ellipsis.
-- Light, fitting wit or wordplay tied to the story is welcome, but stay factual and clear.
-- After "{BRIDGE_SPLIT_MARKER}", keep only a short quiz lead-in (no sign-off, no goodbye). The real outro is added separately after the quiz.
-- Do NOT add a closing/outro in the news or bridge sections.
-- Do NOT invent quiz questions here — the quiz is generated later from the final spoken stories.
-- CRITICAL: Keep every literal marker exactly as-is, in the same order, with no spaces added inside them — they are used programmatically to split the audio:
-  "{TOPIC_SPLIT_MARKER}", "{BRIDGE_SPLIT_MARKER}", "{QA_SPLIT_MARKER}".
-
-{script} """
-
+        if kind == "bridge":
+            task = (
+                "Polish this short quiz lead-in for a kids news podcast.\n"
+                "- Keep it to one or two spoken sentences.\n"
+                "- Do not say goodbye, wrap the show, or invent quiz questions.\n"
+                "- Return ONLY the polished lead-in."
+            )
+        else:
+            task = (
+                "Polish this SINGLE news-story segment for a kids podcast.\n"
+                "- Keep the same facts. Do not add extra information.\n"
+                "- This is one story only. Do not merge in other news, a quiz, or an outro.\n"
+                "- Do not greet the audience or say a host name.\n"
+                "- Write for spoken TTS: about 12-18 word sentences, no ellipsis, no em dashes, "
+                "at most one exclamation mark.\n"
+                "- Keep roughly the same length as the original.\n"
+                "- Return ONLY the polished story text."
+            )
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -107,20 +104,18 @@ CRITICAL:
                     "content": (
                         f"You are {HOST_NAME}, a high-energy morning news host for kids aged 12-16. "
                         "You're excited, curious, and upbeat, but you speak in a natural conversational "
-                        "flow like a real radio host — not chopped slogans. Keep it clear and factual, "
-                        "with momentum between stories. Think: energetic morning show that still sounds "
-                        "human. "
-                        f"CRITICAL: Do NOT say your name ({HOST_NAME}) anywhere in the script — "
-                        "the intro already introduces you once."
+                        "flow like a real radio host. Keep it clear and factual. "
+                        f"Do NOT say your name ({HOST_NAME})."
                     ),
                 },
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": f"{task}\n\n{text}"},
             ],
         )
-        return response.choices[0].message.content.strip()
+        polished = (response.choices[0].message.content or "").strip()
+        return polished or text
     except Exception as e:
-        print(f"  Script polish failed ({e}), using raw script")
-        return script
+        print(f"  Script polish failed ({e}), using raw {kind}")
+        return text
 
 
 def _parse_qa_pairs(qa_raw):
@@ -279,6 +274,8 @@ def _generate_quiz_from_topics(topics):
                 "properties": {
                     "items": {
                         "type": "array",
+                        "minItems": len(topics),
+                        "maxItems": len(topics),
                         "items": {
                             "type": "object",
                             "properties": {
@@ -335,57 +332,40 @@ CRITICAL rules:
             print(
                 f"  Warning: quiz regen returned {len(pairs)} items for {len(topics)} stories"
             )
-            return []
         return pairs
     except Exception as e:
         print(f"  Quiz regen from spoken script failed ({e})")
         return []
 
 
-def create_script(fname, ep, t=0):
-    tag1 = " [silence] "
+def _clean_spoken(text):
+    text = utils.cleanupTxt(text or "")
+    return _strip_host_name(text.strip())
 
-    # Intro is applied after polish so the LLM can't drop or rename the host.
+
+def create_script(fname, ep, t=0):
+    # Intro/outro stay out of polish so the host name and closing can't get dropped.
     intro_parts = _canonical_intro_parts(t)
     intro = _canonical_intro(t)
     outro = _canonical_outro()
-    bridge_seed = _default_bridge()
+    news_parts = [a["pod_script"] for a in ep if a.get("pod_script")]
 
-    news_parts = [a["pod_script"] for a in ep]
+    # Polish each story on its own. Sending the whole episode through one LLM
+    # call used to delete @@TOPIC@@ markers, merging 6 stories into 1 and
+    # producing a single quiz question.
+    topics = []
+    for part in news_parts:
+        polished = _clean_spoken(_polish_segment(part, kind="story"))
+        if polished:
+            topics.append(polished)
 
-    # Markers sit between stories so pydub can stitch real topic transitions.
-    # Quiz is generated later from the final spoken stories (not the raw article).
-    topics_body = TOPIC_SPLIT_MARKER.join(news_parts)
+    if len(topics) != len(news_parts):
+        print(
+            f"  Warning: polish dropped stories ({len(topics)}/{len(news_parts)}), "
+            "using original segments"
+        )
+        topics = [t for t in (_clean_spoken(p) for p in news_parts) if t]
 
-    body = (
-        topics_body
-        + tag1
-        + BRIDGE_SPLIT_MARKER
-        + bridge_seed
-        + tag1
-        + QA_SPLIT_MARKER
-    )
-
-    body = _fix_script_flow(body)
-    body = utils.cleanupTxt(body)
-
-    if QA_SPLIT_MARKER in body:
-        news_raw, _qa_ignored = body.split(QA_SPLIT_MARKER, 1)
-    else:
-        print("  Warning: QA split marker missing after polish, using single news segment")
-        news_raw = body
-
-    if BRIDGE_SPLIT_MARKER in news_raw:
-        topics_raw, bridge = news_raw.split(BRIDGE_SPLIT_MARKER, 1)
-    else:
-        print("  Warning: bridge marker missing after polish, using default bridge")
-        topics_raw, bridge = news_raw, _default_bridge()
-
-    topics = [p.strip() for p in topics_raw.split(TOPIC_SPLIT_MARKER) if p.strip()]
-    if not topics and topics_raw.strip():
-        topics = [topics_raw.strip()]
-
-    # Reinforce clear spoken handoffs if polish dropped them.
     topic_cues = (
         "Next up,",
         "Our next story,",
@@ -403,21 +383,28 @@ def create_script(fname, ep, t=0):
         if not cue_re.match(topics[i]):
             topics[i] = f"{topic_cues[(i - 1) % len(topic_cues)]} {topics[i]}"
 
-    topics = [_strip_host_name(t) for t in topics if _strip_host_name(t)]
-    bridge = _strip_host_name(bridge.strip() or _default_bridge()) or _default_bridge()
+    bridge = _clean_spoken(_polish_segment(_default_bridge(), kind="bridge"))
+    bridge = bridge or _default_bridge()
 
     qa_pairs = _generate_quiz_from_topics(topics)
+    fallback = [
+        (
+            _strip_host_name(a["pod_question"]) or a["pod_question"],
+            _strip_host_name(a["pod_answer"]) or a["pod_answer"],
+        )
+        for a in ep
+        if a.get("pod_question") and a.get("pod_answer")
+    ]
     if not qa_pairs:
-        # Fallback only if regen fails — may still drift from spoken text.
         print("  Warning: using original article quiz as fallback")
-        qa_pairs = [
-            (
-                _strip_host_name(a["pod_question"]) or a["pod_question"],
-                _strip_host_name(a["pod_answer"]) or a["pod_answer"],
-            )
-            for a in ep
-            if a["pod_question"] and a["pod_answer"]
-        ]
+        qa_pairs = fallback
+    elif len(qa_pairs) < len(topics) and fallback:
+        print("  Warning: padding quiz from original article questions")
+        for item in fallback:
+            if len(qa_pairs) >= len(topics):
+                break
+            if item not in qa_pairs:
+                qa_pairs.append(item)
 
     script_parts = {
         "intro": intro,
@@ -451,7 +438,10 @@ def create_script(fname, ep, t=0):
         + sum(len(q.split()) + len(a.split()) for q, a in qa_pairs)
         + len(outro.split())
     )
-    print(f"  Script saved ({total_words} words, host={HOST_NAME}, stories={len(topics)})")
+    print(
+        f"  Script saved ({total_words} words, host={HOST_NAME}, "
+        f"stories={len(topics)}, quiz={len(qa_pairs)})"
+    )
     return script_parts
 
 
