@@ -69,8 +69,14 @@ def upload_files(file_list):
 
         extra = {"ACL": "public-read"}
         content_type, _ = mimetypes.guess_type(full_path)
+        if s3_key.endswith(".json"):
+            content_type = "application/json"
         if content_type:
             extra["ContentType"] = content_type
+        # Homepage and pointer files must not sit in CloudFront/browser cache
+        # for a day — otherwise Latest keeps showing a stale episode.
+        if s3_key in ("index.html", "latest.json", "today.mp3", "feed.xml", "404.html"):
+            extra["CacheControl"] = "no-cache, must-revalidate, max-age=0"
 
         try:
             client.upload_file(full_path, config.S3_BUCKET, s3_key, ExtraArgs=extra)

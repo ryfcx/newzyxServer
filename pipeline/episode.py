@@ -515,6 +515,10 @@ def create_site(ep, t=0):
         with open(index_path, "w", encoding="utf-8") as f:
             f.write(index_html)
         generated.append("index.html")
+        latest_path = os.path.join(web_dir, "latest.json")
+        with open(latest_path, "w", encoding="utf-8") as f:
+            json.dump({"date": curr_dt}, f)
+        generated.append("latest.json")
 
     _write_summary(ep, curr_dt, ep_dir)
     print(f"  Site generated: {', '.join(generated)}")

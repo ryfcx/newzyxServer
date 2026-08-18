@@ -307,14 +307,14 @@
 
 <header>
   <div class="header-inner">
-    <a class="brand" href="index.html">
+    <a class="brand" href="index.html" data-latest>
       <img src="NewzyxV2-removebg.png" class="logo" alt="Newzyx">
     </a>
     <div class="masthead">
       <div class="masthead-title">NEWZYX</div>
     </div>
     <div class="header-right">
-      <a id="latestBtn" class="latest-btn" href="index.html">Latest</a>
+      <a id="latestBtn" class="latest-btn" href="index.html" data-latest>Latest</a>
       <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
       <label class="edition-date">
         Archive
@@ -339,6 +339,35 @@
 </main>
 
 <script>
+  function goToLatest(fallbackHref) {
+    const nested = window.location.pathname.indexOf('/episodes/') !== -1;
+    const urls = ['/latest.json', '../../latest.json', 'latest.json'];
+    (async function () {
+      for (let i = 0; i < urls.length; i++) {
+        try {
+          const r = await fetch(urls[i] + '?t=' + Date.now(), { cache: 'no-store' });
+          if (!r.ok) continue;
+          const data = await r.json();
+          const date = data && data.date;
+          if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            window.location.href = nested
+              ? '../' + date + '/' + date + '.html'
+              : 'episodes/' + date + '/' + date + '.html';
+            return;
+          }
+        } catch (err) {}
+      }
+      window.location.href = fallbackHref || (nested ? '../../index.html' : 'index.html');
+    })();
+  }
+
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('[data-latest]');
+    if (!a) return;
+    e.preventDefault();
+    goToLatest(a.getAttribute('href'));
+  });
+
   const dtInput = document.getElementById('dtInput');
 
   function localISODate(d) {
@@ -407,7 +436,7 @@
           <div class="article-summary" style="max-width:420px; margin:0 auto 24px;">
             There was no podcast published on this day. Try picking another date from the archive or jump to the latest episode.
           </div>
-          <a href="index.html" class="latest-btn" style="display:inline-block; padding:10px 24px; font-size:13px;">Latest News</a>
+          <a href="index.html" class="latest-btn" data-latest style="display:inline-block; padding:10px 24px; font-size:13px;">Latest News</a>
         </div>`;
       return;
     }
