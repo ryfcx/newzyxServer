@@ -8,7 +8,7 @@ import os
 import signal
 from datetime import datetime
 
-from newzyx import workspace
+from newzyx import utils, workspace
 from pipeline import db, collect, extract, process, episode, tts, upload, rss
 
 
@@ -45,8 +45,13 @@ def _step(num: int, fn):
 
 
 def run_daily_pipeline(t: int = 0) -> int:
-    """Run the full pipeline once. Returns 0 on success (including skipped episode)."""
+    """Run the full pipeline once. Returns 0 on success (including skipped episode).
+
+    ``t`` is days ago. The episode date and article news_dt both use that calendar
+    day so a catch-up for yesterday cannot pick today's stories.
+    """
     started = datetime.now()
+    news_date = utils.ymd(t)
     _install_cleanup_handlers()
     workspace.init_workspace_from_env()
     try:
@@ -56,6 +61,7 @@ def run_daily_pipeline(t: int = 0) -> int:
         site_files = []
         script_parts = {}
         script_path = os.path.join(workspace.get_workspace(), "script.txt")
+        print(f"[newzyx] Episode news date {news_date} (t={t})", flush=True)
 
         _step(1, collect.collect_urls)
         _step(2, extract.process_urls)
@@ -63,7 +69,7 @@ def run_daily_pipeline(t: int = 0) -> int:
 
         def pick_ep():
             nonlocal ep
-            ep = episode.select_articles()
+            ep = episode.select_articles(news_date=news_date)
 
         _step(4, pick_ep)
 

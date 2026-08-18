@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Server pipeline — run once per invocation (schedule with systemd/cron). python scripts/run_once.py"""
+import argparse
 import os
 import sys
 
@@ -11,4 +12,13 @@ os.chdir(_ROOT)
 from newzyx.run import run_daily_pipeline
 
 if __name__ == "__main__":
-    raise SystemExit(run_daily_pipeline())
+    parser = argparse.ArgumentParser(description="Run the Newzyx pipeline once")
+    parser.add_argument(
+        "-t",
+        "--days-ago",
+        type=int,
+        default=0,
+        help="Calendar day for the episode and article news date (0=today, 1=yesterday)",
+    )
+    args = parser.parse_args()
+    raise SystemExit(run_daily_pipeline(t=args.days_ago))

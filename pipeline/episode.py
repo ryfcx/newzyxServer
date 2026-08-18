@@ -65,9 +65,10 @@ def select_articles(news_date=None):
                 "  Not enough articles scoring 90+ in the last few days — collect more or rerun process"
             )
         return []
-    print(f"  Selected {len(ep)} articles for episode:")
+    print(f"  Selected {len(ep)} articles for episode ({news_date or 'recent window'}):")
     for a in ep:
-        print(f"    [{a['score']}] {a['source']}/{a['topic']}: {a['title'][:60]}")
+        dt = a["news_dt"] or a["collect_dt"] or "?"
+        print(f"    [{a['score']}] {dt} {a['source']}/{a['topic']}: {a['title'][:60]}")
     return ep
 
 
