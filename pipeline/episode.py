@@ -348,7 +348,7 @@ def create_script(fname, ep, t=0):
     intro_parts = _canonical_intro_parts(t)
     intro = _canonical_intro(t)
     outro = _canonical_outro()
-    news_parts = [a["pod_script"] for a in ep if a.get("pod_script")]
+    news_parts = [a["pod_script"] for a in ep if a["pod_script"]]
 
     # Polish each story on its own. Sending the whole episode through one LLM
     # call used to delete @@TOPIC@@ markers, merging 6 stories into 1 and
@@ -393,7 +393,7 @@ def create_script(fname, ep, t=0):
             _strip_host_name(a["pod_answer"]) or a["pod_answer"],
         )
         for a in ep
-        if a.get("pod_question") and a.get("pod_answer")
+        if a["pod_question"] and a["pod_answer"]
     ]
     if not qa_pairs:
         print("  Warning: using original article quiz as fallback")
