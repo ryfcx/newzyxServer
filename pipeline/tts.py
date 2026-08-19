@@ -111,14 +111,16 @@ _TENS = [
 
 
 def _year_words(year):
+    """Speak 20xx years. Do not use the day-of-month table (it only goes to 31)."""
     if 2000 <= year <= 2099:
         ones = year % 100
         if ones == 0:
             return "two thousand"
+        spoken = _under_1000_words(ones)
         if ones < 10:
-            return f"two thousand {_DAY_CARDINALS[ones]}"
-        return f"twenty {_DAY_CARDINALS[ones]}"
-    return str(year)
+            return f"two thousand {spoken}"
+        return f"twenty {spoken}"
+    return _int_to_words(year)
 
 
 def _under_1000_words(n):
