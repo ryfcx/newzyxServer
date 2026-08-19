@@ -65,8 +65,8 @@ Article:
 
 
 def _call_llm(article_text, timeout=90, retries=3):
-    prompt = PROMPT_TEMPLATE.format(
-        article_text=article_text, json_schema=json.dumps(JSON_SCHEMA)
+    prompt = PROMPT_TEMPLATE.replace("{json_schema}", json.dumps(JSON_SCHEMA)).replace(
+        "{article_text}", article_text or ""
     )
     headers = {
         "Authorization": f"Bearer {config.AI_KEY}",

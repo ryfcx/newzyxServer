@@ -109,16 +109,42 @@ def run_daily_pipeline(t: int = 0) -> int:
 
         def do_upload():
             web_root = workspace.generated_website_dir()
+            proj_web = workspace.project_website_dir()
             paths = [os.path.join(web_root, f) for f in site_files]
             paths.extend(audio_files)
             paths.append(os.path.join(web_root, "feed.xml"))
-            paths.append(os.path.join(web_root, "today.mp3"))
-            paths.append(
-                os.path.join(workspace.project_website_dir(), rss.PODCAST_ARTWORK_BASENAME)
-            )
-            upload.upload_files(paths)
+            if t == 0:
+                today_mp3 = os.path.join(web_root, "today.mp3")
+                if os.path.isfile(today_mp3):
+                    paths.append(today_mp3)
+            for extra_name in (
+                rss.PODCAST_ARTWORK_BASENAME,
+                "NewzyxV2-removebg.png",
+                "NewzyxV2Favicon.ico",
+                "404.html",
+            ):
+                extra_path = os.path.join(proj_web, extra_name)
+                if os.path.isfile(extra_path):
+                    paths.append(extra_path)
+            return upload.upload_files(paths)
 
-        _step(9, do_upload)
+        uploaded = _step(9, do_upload)
+        date_str = utils.ymd(t)
+        required = [
+            f"episodes/{date_str}/{date_str}.html",
+            f"episodes/{date_str}/{date_str}.mp3",
+            "feed.xml",
+        ]
+        if t == 0:
+            required.extend(["index.html", "latest.json"])
+        missing = [key for key in required if key not in (uploaded or [])]
+        if missing:
+            print(
+                f"[newzyx] Upload incomplete, not marking published: {missing}",
+                flush=True,
+            )
+            return 1
+
         db.mark_published([a["id"] for a in ep])
 
         elapsed = datetime.now() - started

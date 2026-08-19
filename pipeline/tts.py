@@ -6,6 +6,7 @@ import io
 import re
 import shutil
 import os
+import time
 from newzyx import config, workspace
 
 # Keep in sync with pipeline.episode.HOST_NAME (avoid importing episode here).
@@ -212,6 +213,8 @@ def _normalize_hard_tts_phrases(text):
     # Decimals like 3.5 → three point five (avoid digit-by-digit mush)
     def _decimal_words(match):
         whole, frac = match.group(1), match.group(2)
+        if not whole.isdigit() or not frac.isdigit():
+            return match.group(0)
         whole_words = _int_to_words(int(whole))
         frac_words = " ".join(_ONES[int(d)] for d in frac)
         return f"{whole_words} point {frac_words}"
@@ -225,34 +228,50 @@ def _prepare_tts_text(text):
     text = (text or "").strip()
     if not text:
         return text
-    text = _normalize_hard_tts_phrases(text)
-    text = _apply_pronunciation_fixes(text)
-    # Em/en dashes and ellipses make multilingual TTS take long awkward pauses.
-    text = text.replace("—", ", ").replace("–", ", ").replace("…", ", ")
-    text = re.sub(r"\.{3,}", ", ", text)
-    text = re.sub(r"!{2,}", "!", text)
-    text = re.sub(r"\s+", " ", text)
-    text = re.sub(r"\s*,\s*", ", ", text)
-    text = re.sub(r"\s*\.\s*", ". ", text)
-    text = re.sub(r"\s*\?\s*", "? ", text)
-    text = re.sub(r"\s*!\s*", "! ", text)
-    text = re.sub(r"\s*,\s*,+", ", ", text)
-    return text.strip()
+    original = text
+    try:
+        text = _normalize_hard_tts_phrases(text)
+        text = _apply_pronunciation_fixes(text)
+        # Em/en dashes and ellipses make multilingual TTS take long awkward pauses.
+        text = text.replace("—", ", ").replace("–", ", ").replace("…", ", ")
+        text = re.sub(r"\.{3,}", ", ", text)
+        text = re.sub(r"!{2,}", "!", text)
+        text = re.sub(r"\s+", " ", text)
+        text = re.sub(r"\s*,\s*", ", ", text)
+        text = re.sub(r"\s*\.\s*", ". ", text)
+        text = re.sub(r"\s*\?\s*", "? ", text)
+        text = re.sub(r"\s*!\s*", "! ", text)
+        text = re.sub(r"\s*,\s*,+", ", ", text)
+        return text.strip()
+    except Exception as e:
+        print(f"  Warning: TTS text normalize failed ({e}), using original wording")
+        return original
 
 
 def _synthesize(client, text):
     prepared = _prepare_tts_text(text)
     if not prepared:
         return AudioSegment.silent(duration=1)
-    audio_bytes = b"".join(
-        client.text_to_speech.convert(
-            voice_id=config.ELEVENLABS_VOICE_ID,
-            model_id=config.ELEVENLABS_MODEL_ID,
-            voice_settings=_VOICE_SETTINGS,
-            text=prepared,
-        )
-    )
-    return AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+    last_err = None
+    for attempt in range(3):
+        try:
+            audio_bytes = b"".join(
+                client.text_to_speech.convert(
+                    voice_id=config.ELEVENLABS_VOICE_ID,
+                    model_id=config.ELEVENLABS_MODEL_ID,
+                    voice_settings=_VOICE_SETTINGS,
+                    text=prepared,
+                )
+            )
+            if not audio_bytes:
+                raise RuntimeError("ElevenLabs returned empty audio")
+            return AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+        except Exception as e:
+            last_err = e
+            wait = 2.0 * (2 ** attempt)
+            print(f"  TTS attempt {attempt + 1}/3 failed ({e}); retrying in {wait:.0f}s")
+            time.sleep(wait)
+    raise RuntimeError(f"TTS failed after 3 retries: {last_err}") from last_err
 
 
 def _load_bed(path, target_dbfs=-18.0):

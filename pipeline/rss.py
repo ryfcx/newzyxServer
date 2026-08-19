@@ -124,8 +124,18 @@ def add_episode(feed_path="website/feed.xml", date_str=None, mp3_path=None,
     if not feed_path.exists():
         create_feed(feed_path)
 
-    tree = etree.parse(str(feed_path))
-    channel = tree.getroot().find("channel")
+    try:
+        tree = etree.parse(str(feed_path))
+        channel = tree.getroot().find("channel")
+    except Exception as e:
+        print(f"  Warning: feed parse failed ({e}), recreating")
+        channel = None
+    if channel is None:
+        create_feed(feed_path)
+        tree = etree.parse(str(feed_path))
+        channel = tree.getroot().find("channel")
+    if channel is None:
+        raise RuntimeError("RSS feed is missing a channel element")
 
     if episode_date is None:
         episode_date = datetime.now() - timedelta(days=t)
@@ -221,7 +231,11 @@ def incremental_append_current_episode(feed_path, mp3_abs_path, t=0, articles=No
 
     fp = Path(feed_path)
     fp.parent.mkdir(parents=True, exist_ok=True)
-    ok = upload_mod.download_object_if_exists("feed.xml", str(fp))
+    try:
+        ok = upload_mod.download_object_if_exists("feed.xml", str(fp))
+    except Exception as e:
+        print(f"  Warning: could not download feed.xml ({e}), starting a new feed")
+        ok = False
     if not ok or not fp.exists() or fp.stat().st_size == 0:
         create_feed(str(fp))
     refresh_feed_channel_metadata(str(fp))

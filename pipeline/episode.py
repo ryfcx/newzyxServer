@@ -176,15 +176,38 @@ _DAY_WORDS = {
 }
 
 
+def _two_digit_words(n):
+    """Speak 0-99 without depending on the day-of-month table."""
+    if n in _DAY_WORDS:
+        return _DAY_WORDS[n]
+    if n < 0:
+        return str(n)
+    tens, ones = divmod(n, 10)
+    tens_names = {
+        2: "twenty",
+        3: "thirty",
+        4: "forty",
+        5: "fifty",
+        6: "sixty",
+        7: "seventy",
+        8: "eighty",
+        9: "ninety",
+    }
+    if ones == 0:
+        return tens_names.get(tens, str(n))
+    return f"{tens_names.get(tens, str(tens * 10))} {_DAY_WORDS.get(ones, ones)}"
+
+
 def _spoken_year(year):
     """Spell years for TTS so models don't slur digit clusters like 2026."""
     if 2000 <= year <= 2099:
         ones = year % 100
         if ones == 0:
             return "two thousand"
+        spoken = _two_digit_words(ones)
         if ones < 10:
-            return f"two thousand {_DAY_WORDS[ones]}"
-        return f"twenty {_DAY_WORDS[ones]}"
+            return f"two thousand {spoken}"
+        return f"twenty {spoken}"
     return str(year)
 
 
@@ -208,7 +231,11 @@ def _canonical_intro_parts(t=0):
     return {
         "greeting": "Good morning, and welcome to Newzyx!",
         "name": f"I'm {HOST_NAME}.",
-        "date": f"Today is {_spoken_date(t)}, so let's dive into the news.",
+        "date": (
+            f"Today is {_spoken_date(t)}, so let's dive into the news."
+            if t == 0
+            else f"This edition is for {_spoken_date(t)}. Let's dive into the news."
+        ),
     }
 
 
