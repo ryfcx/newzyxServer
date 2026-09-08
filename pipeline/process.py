@@ -29,7 +29,7 @@ IMPORTANT: The show ONLY publishes stories scored 90 or higher. Use the full 0-1
   - Decent but not episode-worthy → 66-79
   - Strong kids angle, clear educational or "wow" value → 80-89
   - Episode-worthy: would excite a curious 13-year-old, classroom-worthy, memorable → 90-96
-  - Exceptional: major global/science/sports moment, rare discovery, viral human-interest → 97-100
+  - Exceptional: major global/science/tech moment, rare discovery, viral human-interest → 97-100
 
 Within 90-96, spread scores (do not give every good story a 92). Use decimals mentally then round to integer.
 
@@ -37,8 +37,11 @@ HARD SCORE CAPS (override everything above):
   - Product launch, review, deal, "best of" list → max 35
   - Political process/legislation horse-race (not outcome kids care about) → max 55
   - Stock prices, corporate earnings, banking → max 25
-  - Niche league/team coverage (not final/championship/record) → max 65
+  - Niche league/team coverage (not final/championship/record) → max 55
+  - Sports scores, match recaps, or athlete news that is not a historic record or championship → max 78
   - Opinion/editorial or pure punditry → max 45
+
+When two stories are otherwise equal, prefer science, space, nature, and technology over sports.
 
 ASK: "Would a 13-year-old tell a friend about this?" If no → under 80.
 

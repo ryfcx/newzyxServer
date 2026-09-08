@@ -189,6 +189,18 @@ def get_publish_candidates_for_date(news_date, min_score=90):
         ).fetchall()
 
 
+# Prefer discovery over game recaps. Sports still appear, but not as a block of the show.
+TOPIC_SCORE_WEIGHT = {
+    "science": 1.30,
+    "technology": 1.30,
+    "environment": 1.12,
+    "sports": 0.55,
+}
+MAX_TOPIC_COUNT = {
+    "sports": 1,
+}
+
+
 def select_episode(
     min_score=90,
     max_age_days=3,
@@ -229,7 +241,9 @@ def select_episode(
                 recency = 0.7
             elif cdt < today:
                 recency = 0.9
-        final = c["score"] * recency
+        topic = (c["topic"] or "general").lower()
+        weight = TOPIC_SCORE_WEIGHT.get(topic, 1.0)
+        final = c["score"] * recency * weight
         scored.append((final, c))
 
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -242,7 +256,10 @@ def select_episode(
         if len(selected) >= target:
             break
         src = c["source"] or "unknown"
-        topic = c["topic"] or "general"
+        topic = (c["topic"] or "general").lower()
+        topic_cap = MAX_TOPIC_COUNT.get(topic)
+        if topic_cap is not None and seen_topics.get(topic, 0) >= topic_cap:
+            continue
 
         src_count = seen_sources.get(src, 0)
         topic_count = seen_topics.get(topic, 0)

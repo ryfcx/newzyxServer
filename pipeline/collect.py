@@ -20,6 +20,7 @@ SOURCES = [
     ("popsci", "technology", "https://www.popsci.com/category/technology/", ""),
     ("bbc", "sports", "https://www.bbc.com/sport/", "https://www.bbc.com"),
     ("bbc", "technology", "https://www.bbc.com/news/technology", "https://www.bbc.com"),
+    ("bbc", "science", "https://www.bbc.com/news/science_and_environment", "https://www.bbc.com"),
     ("national-geographic", "history", "https://www.nationalgeographic.com/history/", ""),
     ("national-geographic", "science", "https://www.nationalgeographic.com/science/", ""),
     ("abc-news", "general", "https://abcnews.go.com/", ""),
