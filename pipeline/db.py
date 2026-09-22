@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from contextlib import contextmanager
 
 from newzyx.config import DB_PATH
+from newzyx import utils
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS articles (
@@ -268,6 +269,14 @@ def choose_diverse(candidates, target=6):
             return False
         src = c["source"] or "unknown"
         if seen_sources.get(src, 0) >= source_cap:
+            return False
+        spoken = " ".join(
+            str(c[key] or "")
+            for key in ("title", "summary", "pod_script", "pod_question", "pod_answer")
+        )
+        crude = utils.inappropriate(spoken)
+        if crude:
+            print(f"  Skip inappropriate ({crude}): {(c['title'] or '')[:60]}")
             return False
         selected.append(c)
         selected_ids.add(aid)

@@ -18,9 +18,48 @@ def ymd(n=0, fmt="%Y-%m-%d"):
     return (datetime.now() - timedelta(days=n)).strftime(fmt)
 
 
+# Whole words only, so names and ordinary words (Dickinson, cocktail, Scunthorpe) stay.
+_PROFANITY = re.compile(
+    r"\b("
+    r"fuck\w*|fck|fuq|fuk|motherf\w*|"
+    r"f[\W_]*u[\W_]*c[\W_]*k|f\*+[c]?k|"
+    r"bullshit\w*|shit\w*|shite|"
+    r"s[\W_]*h[\W_]*i[\W_]*t|sh\*+t|b\*+tch|"
+    r"bitch\w*|bastard\w*|bollocks?|wanker\w*|twat\w*|"
+    r"assholes?|asshats?|dumbass\w*|jackass\w*|badass\w*|smartass\w*|\bass\b|"
+    r"damn\w*|goddamn\w*|\bhell\b|"
+    r"craps?|crappy|piss\w*|"
+    r"dicks?|dickhead\w*|\bcocks?\b|"
+    r"puss(?:y|ies)|"
+    r"sluts?|whores?|"
+    r"pricks?|\btits?\b|"
+    r"cunts?|"
+    r"porn\w*|\bxxx\b|"
+    r"\bsex\w*|"
+    r"blowjobs?|handjobs?|"
+    r"rapists?|\brape\w*|"
+    r"faggot\w*|\bfags?\b|"
+    r"\bretard(?:ed|s)?\b|"
+    r"niggers?|niggaz?|"
+    r"chinks?|\bspics?\b|\bkikes?\b"
+    r")\b",
+    re.I,
+)
+
+
+def inappropriate(txt):
+    """Return the matched crude word, or '' if the text is fine for the kids show."""
+    if not txt:
+        return ""
+    match = _PROFANITY.search(txt)
+    return match.group(0) if match else ""
+
+
 def isBad(txt, mode=0):
+    crude = inappropriate(txt)
+    if crude:
+        return crude
     filter1 = [
-        "shit", "bitch", "asshole", "porn", "xxx", "sex", " rape ",
         "menstruation", "cocaine", "alcohol", "casino", "violence", "racist",
         " nazi ", "suicide", "erotic", "homicide", "terrorist", "airstrike",
         "missile", "assault", "abuse", "overdose", "hostage", "arrested",

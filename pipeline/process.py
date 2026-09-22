@@ -42,8 +42,10 @@ HARD SCORE CAPS (override everything above):
   - A real game result, record, championship, or athlete story kids would retell → 90-96 is allowed
   - Routine weather or a minor animal sighting → max 75
   - Opinion/editorial or pure punditry → max 45
+  - Profanity, slurs, sexual content, or crude language anywhere in the article → score 0
 
 ASK: "Would a 13-year-old tell a friend about this?" If no → under 80.
+Never use swear words, slurs, or crude language in the summary, script, question, or answer.
 
 Summarize the article in 7-8 simple, factual, positive sentences for a young audience.
 Write a 140-150 word podcast script segment in the style of an energetic, enthusiastic morning
