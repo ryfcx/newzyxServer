@@ -1,7 +1,10 @@
+import re
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from collections import defaultdict
+from xml.etree import ElementTree as ET
 import ftfy
 from newzyx import utils
 from pipeline import db
@@ -29,6 +32,26 @@ SOURCES = [
     ("nbc-news", "sports", "https://www.nbcnews.com/sports", ""),
 ]
 
+# RSS first so non-Guardian stories get a pubDate (HTML scrapers usually do not).
+RSS_SOURCES = [
+    ("bbc", "sports", "https://feeds.bbci.co.uk/sport/rss.xml"),
+    ("bbc", "technology", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
+    ("bbc", "science", "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"),
+    ("bbc", "world", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+    ("bbc", "health", "https://feeds.bbci.co.uk/news/health/rss.xml"),
+    ("popsci", "science", "https://www.popsci.com/feed/"),
+    ("nbc-news", "world", "https://feeds.nbcnews.com/nbcnews/public/world"),
+    ("nbc-news", "technology", "https://feeds.nbcnews.com/nbcnews/public/tech"),
+    ("nbc-news", "science", "https://feeds.nbcnews.com/nbcnews/public/science"),
+    ("abc-news", "general", "https://abcnews.go.com/abcnews/topstories"),
+    ("abc-news", "technology", "https://abcnews.go.com/abcnews/technologyheadlines"),
+]
+
+_BBC_TIME_PREFIX = re.compile(
+    r"^(?:\d+\s+(?:min|mins|hr|hrs|hour|hours|day|days)\s+ago|\d{1,2}\s+[A-Za-z]{3,}\s+\d{4})\s+",
+    re.I,
+)
+
 
 def _fetch(url):
     return utils.retry_request(
@@ -52,13 +75,94 @@ def _parse_date_from_url(url_parts, fmt_indices, fmt_str=None):
         return None
 
 
+def _local_tag(el):
+    return (el.tag or "").split("}")[-1]
+
+
+def _rss_child_text(item, names):
+    names = set(names)
+    for child in list(item):
+        if _local_tag(child) not in names:
+            continue
+        text = (child.text or "").strip()
+        if text:
+            return text
+        href = child.get("href") or child.get("url")
+        if href:
+            return href.strip()
+    return ""
+
+
+def _parse_rss_date(raw):
+    if not raw:
+        return None
+    try:
+        return parsedate_to_datetime(raw).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, OverflowError):
+        pass
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+
+
+def _collect_rss():
+    candidates = []
+    for source, topic, feed_url in RSS_SOURCES:
+        try:
+            resp = _fetch(feed_url)
+            resp.raise_for_status()
+            root = ET.fromstring(resp.content)
+            items = [
+                el for el in root.iter()
+                if _local_tag(el) in ("item", "entry")
+            ]
+            for item in items:
+                title = ftfy.fix_text(_rss_child_text(item, ("title",)))
+                url = _rss_child_text(item, ("link", "id", "guid"))
+                if not title or not url or not url.startswith("http"):
+                    continue
+                news_dt = _parse_rss_date(
+                    _rss_child_text(item, ("pubDate", "published", "updated", "date"))
+                )
+                item_topic = topic
+                if source == "popsci" and "/technology/" in url:
+                    item_topic = "technology"
+                candidates.append((url, title, item_topic, source, news_dt))
+                print(f"  rss: {source}/{item_topic} {title[:60]}")
+        except Exception as e:
+            print(f"  Failed to fetch RSS {feed_url}: {e}")
+    return candidates
+
+
+def _bbc_article_links(soup, prefix):
+    seen = set()
+    rows = []
+    for tag in soup.find_all("a", href=True):
+        href = str(tag.get("href") or "")
+        url = _abs_url(href, prefix)
+        if url in seen:
+            continue
+        if "/articles/" not in url and "/news/" not in url and "/sport/" not in url:
+            continue
+        if any(skip in url for skip in ("/videos/", "/live/", "/sounds/", "/iplayer/")):
+            continue
+        title = ftfy.fix_text(tag.get_text(" ", strip=True) or "")
+        title = _BBC_TIME_PREFIX.sub("", title).strip()
+        if len(title) < 20:
+            continue
+        seen.add(url)
+        rows.append((url, title, None))
+    return rows
+
+
 def collect_urls(only_news_date=None):
     """
     If only_news_date is YYYY-MM-DD, only enqueue URLs with that story date
     (when the date is present in the link) so backfill aligns with a calendar day.
     """
     db.init_db()
-    candidates = []
+    candidates = _collect_rss()
 
     for source, topic, base_url, prefix in SOURCES:
         try:
@@ -121,18 +225,9 @@ def collect_urls(only_news_date=None):
                         print(f"  fetch: {source}/{topic} {title[:60]}")
 
             elif "bbc" in base_url:
-                for h3 in soup.find_all("h3"):
-                    ahref = h3.find("a")
-                    if ahref:
-                        title = ftfy.fix_text(ahref.text.strip()) if ahref.text.strip() else None
-                        if not title:
-                            span = h3.find("span")
-                            title = ftfy.fix_text(span.text.strip()) if span else None
-                        if title:
-                            href = ahref.get("href", "")
-                            url = _abs_url(href, prefix)
-                            candidates.append((url, title, topic, source, None))
-                            print(f"  fetch: {source}/{topic} {title[:60]}")
+                for url, title, news_dt in _bbc_article_links(soup, prefix):
+                    candidates.append((url, title, topic, source, news_dt))
+                    print(f"  fetch: {source}/{topic} {title[:60]}")
 
             else:
                 for h3 in soup.find_all("h3"):

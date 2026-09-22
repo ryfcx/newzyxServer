@@ -1,3 +1,4 @@
+import json
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -27,22 +28,46 @@ def _extract_single(url, timeout=15, max_chars=7000):
     soup = BeautifulSoup(r.text, "html.parser")
     news_dt = None
 
+    def _as_day(raw):
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            return None
+
     for meta_name in ["article:published_time", "datePublished", "date"]:
         meta = soup.find("meta", attrs={"name": meta_name}) or soup.find("meta", attrs={"property": meta_name})
         if meta and meta.get("content"):
-            try:
-                news_dt = datetime.fromisoformat(meta["content"].replace("Z", "+00:00")).strftime("%Y-%m-%d")
+            news_dt = _as_day(meta["content"])
+            if news_dt:
                 break
-            except (ValueError, TypeError):
-                pass
 
     if not news_dt:
         time_tag = soup.find("time", attrs={"datetime": True})
         if time_tag:
+            news_dt = _as_day(time_tag["datetime"])
+
+    if not news_dt:
+        for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+            raw = script.string or script.get_text() or ""
             try:
-                news_dt = datetime.fromisoformat(time_tag["datetime"].replace("Z", "+00:00")).strftime("%Y-%m-%d")
+                data = json.loads(raw)
             except (ValueError, TypeError):
-                pass
+                continue
+            objs = data if isinstance(data, list) else [data]
+            extra = []
+            for obj in objs:
+                if isinstance(obj, dict) and "@graph" in obj:
+                    extra.extend(obj.get("@graph") or [])
+            for obj in objs + extra:
+                if not isinstance(obj, dict):
+                    continue
+                news_dt = _as_day(obj.get("datePublished") or obj.get("dateCreated"))
+                if news_dt:
+                    break
+            if news_dt:
+                break
 
     node = soup.find("article")
     paragraphs = node.find_all("p") if node else soup.find_all("p")

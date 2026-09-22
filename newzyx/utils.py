@@ -55,7 +55,7 @@ def isBad(txt, mode=0):
         "% off", "$ off", "discount", "promo code", "best deals",
         "price drop", "buy now", "on sale", "cheapest", "best buy",
         "shop now", "checkout", "airdrop", "upgrade your", "get one free",
-        "limited time", "flash sale", "unboxing", "hands-on review", "vs.",
+        "limited time", "flash sale", "unboxing", "hands-on review",
         "which should you buy", "sponsored", "affiliate", "paid partnership",
         "ad:", "advertisement",
     ]

@@ -68,7 +68,8 @@ def select_articles(news_date=None):
     print(f"  Selected {len(ep)} articles for episode ({news_date or 'recent window'}):")
     for a in ep:
         dt = a["news_dt"] or a["collect_dt"] or "?"
-        print(f"    [{a['score']}] {dt} {a['source']}/{a['topic']}: {a['title'][:60]}")
+        bucket = db.story_bucket(a["topic"], a["title"])
+        print(f"    [{a['score']}] {dt} {a['source']}/{bucket}: {a['title'][:60]}")
     return ep
 
 

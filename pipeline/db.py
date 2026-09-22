@@ -1,6 +1,7 @@
 import sqlite3
 import hashlib
 import os
+import re
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 
@@ -88,7 +89,11 @@ def insert_articles_batch(rows):
                 )
                 added += 1
             except sqlite3.IntegrityError:
-                pass
+                if news_dt:
+                    conn.execute(
+                        "UPDATE articles SET news_dt=COALESCE(news_dt, ?) WHERE url=?",
+                        (news_dt, url),
+                    )
     return added
 
 
@@ -126,12 +131,13 @@ def mark_invalid(article_id, reason):
         )
 
 
-def get_extracted(limit_per_topic=12, only_news_date=None):
+def get_extracted(limit_per_topic=12, limit_per_source=12, only_news_date=None):
     with _connect() as conn:
         if only_news_date:
             rows = conn.execute(
                 """SELECT id, url, title, topic, source, article FROM articles
-                   WHERE state='extracted' AND invalid_reason IS NULL AND news_dt = ?
+                   WHERE state='extracted' AND invalid_reason IS NULL
+                     AND COALESCE(news_dt, collect_dt) = ?
                    ORDER BY collect_dt DESC""",
                 (only_news_date,),
             ).fetchall()
@@ -143,11 +149,17 @@ def get_extracted(limit_per_topic=12, only_news_date=None):
             ).fetchall()
     result = []
     topic_counts = {}
+    source_counts = {}
     for r in rows:
         t = r["topic"] or "general"
+        src = r["source"] or "unknown"
+        if topic_counts.get(t, 0) >= limit_per_topic:
+            continue
+        if source_counts.get(src, 0) >= limit_per_source:
+            continue
         topic_counts[t] = topic_counts.get(t, 0) + 1
-        if topic_counts[t] <= limit_per_topic:
-            result.append(r)
+        source_counts[src] = source_counts.get(src, 0) + 1
+        result.append(r)
     return result
 
 
@@ -183,22 +195,128 @@ def get_publish_candidates_for_date(news_date, min_score=90):
                       pod_question, pod_answer, news_dt, collect_dt
                FROM articles
                WHERE state='scored' AND invalid_reason IS NULL AND score >= ?
-                     AND news_dt = ?
+                     AND COALESCE(news_dt, collect_dt) = ?
                ORDER BY score DESC, collect_dt DESC""",
             (min_score, news_date),
         ).fetchall()
 
 
-# Prefer discovery over game recaps. Sports still appear, but not as a block of the show.
-TOPIC_SCORE_WEIGHT = {
-    "science": 1.30,
-    "technology": 1.30,
-    "environment": 1.12,
-    "sports": 0.55,
+# One story from each of these before any second science or nature piece.
+FIRST_BUCKETS = ("sports", "technology", "world", "science", "health")
+MAX_BUCKET = {
+    "sports": 2,
+    "technology": 2,
+    "world": 2,
+    "science": 1,
+    "nature": 1,
+    "health": 1,
+    "history": 1,
 }
-MAX_TOPIC_COUNT = {
-    "sports": 1,
-}
+MAX_SOURCE_COUNT = 2
+# Pull sports that the scorer capped below the normal 90 line.
+POOL_MIN_SCORE = 60
+OTHER_MIN_SCORE = 80
+_NATURE_TITLE = re.compile(
+    r"\b(bees?|trees?|wildlife|species|climate|typhoon|hurricane|equinox|"
+    r"butterfl(?:y|ies)|whales?|forests?|coral|dinosaurs?|wildfires?|"
+    r"animals?|plants?|birds?|bears?|weather)\b",
+    re.I,
+)
+
+
+def story_bucket(topic, title):
+    """Group section labels so plants, animals, and weather share one cap."""
+    topic = (topic or "general").lower()
+    title = title or ""
+    if topic == "sports":
+        return "sports"
+    if topic in ("technology", "tech"):
+        return "technology"
+    if topic == "health":
+        return "health"
+    if topic == "history":
+        return "history"
+    if topic == "environment" or _NATURE_TITLE.search(title):
+        return "nature"
+    if topic in ("world", "general", "politics"):
+        return "world"
+    if topic == "science":
+        return "science"
+    return "world"
+
+
+def choose_diverse(candidates, target=6):
+    """
+    Fill an episode with different categories and outlets.
+    Sports, tech, world, science, and health are seated before a second nature story.
+    """
+    ranked = sorted(candidates, key=lambda c: c["score"] or 0, reverse=True)
+    selected = []
+    selected_ids = set()
+    seen_sources = {}
+    seen_buckets = {}
+
+    def try_add(c, source_cap, bucket_caps):
+        if len(selected) >= target:
+            return False
+        aid = c["id"]
+        if aid in selected_ids:
+            return False
+        bucket = story_bucket(c["topic"], c["title"])
+        cap = bucket_caps.get(bucket, 1)
+        if seen_buckets.get(bucket, 0) >= cap:
+            return False
+        src = c["source"] or "unknown"
+        if seen_sources.get(src, 0) >= source_cap:
+            return False
+        selected.append(c)
+        selected_ids.add(aid)
+        seen_sources[src] = seen_sources.get(src, 0) + 1
+        seen_buckets[bucket] = seen_buckets.get(bucket, 0) + 1
+        return True
+
+    def best_in(bucket, source_cap, min_score, bucket_caps):
+        for c in ranked:
+            if story_bucket(c["topic"], c["title"]) != bucket:
+                continue
+            if (c["score"] or 0) < min_score:
+                continue
+            if try_add(c, source_cap, bucket_caps):
+                return True
+        return False
+
+    def fill(source_cap, bucket_caps, min_score):
+        for c in ranked:
+            if len(selected) >= target:
+                return
+            if (c["score"] or 0) < min_score:
+                continue
+            try_add(c, source_cap, bucket_caps)
+
+    for bucket in FIRST_BUCKETS:
+        floor = POOL_MIN_SCORE if bucket == "sports" else OTHER_MIN_SCORE
+        if not best_in(bucket, MAX_SOURCE_COUNT, floor, MAX_BUCKET):
+            # Keep the category even if that outlet already has two stories.
+            best_in(bucket, MAX_SOURCE_COUNT + 1, floor, MAX_BUCKET)
+
+    fill(MAX_SOURCE_COUNT, MAX_BUCKET, OTHER_MIN_SCORE)
+
+    # Still short: allow a second science or nature story, and a third outlet story.
+    if len(selected) < target:
+        wider = dict(MAX_BUCKET)
+        wider["science"] = 2
+        wider["nature"] = 2
+        wider["world"] = 3
+        wider["technology"] = 2
+        fill(MAX_SOURCE_COUNT + 1, wider, OTHER_MIN_SCORE)
+
+    # Thin news day: still publish, without letting one outlet take the whole show.
+    if len(selected) < 4:
+        last = {bucket: 3 for bucket in MAX_BUCKET}
+        last["sports"] = 2
+        fill(MAX_SOURCE_COUNT + 1, last, POOL_MIN_SCORE)
+
+    return selected[:target]
 
 
 def select_episode(
@@ -213,75 +331,22 @@ def select_episode(
     are used — for backdated episodes. Otherwise uses recent collect window as before.
     """
     if news_date:
-        candidates = []
-        for score_floor in (min_score, 85, 80):
-            candidates = get_publish_candidates_for_date(news_date, min_score=score_floor)
-            if len(candidates) >= min_articles:
-                break
+        candidates = get_publish_candidates_for_date(news_date, min_score=POOL_MIN_SCORE)
         if len(candidates) < min_articles:
             return []
     else:
         candidates = []
         for days in (max_age_days, 5, 7, 10):
-            candidates = get_publish_candidates(min_score, days)
+            candidates = get_publish_candidates(POOL_MIN_SCORE, days)
             if len(candidates) >= min_articles:
                 break
         if len(candidates) < min_articles:
             return []
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-    scored = []
-    for c in candidates:
-        recency = 1.0
-        if not news_date:
-            cdt = c["collect_dt"] or today
-            if cdt < yesterday:
-                recency = 0.7
-            elif cdt < today:
-                recency = 0.9
-        topic = (c["topic"] or "general").lower()
-        weight = TOPIC_SCORE_WEIGHT.get(topic, 1.0)
-        final = c["score"] * recency * weight
-        scored.append((final, c))
-
-    scored.sort(key=lambda x: x[0], reverse=True)
-
-    selected = []
-    seen_sources = {}
-    seen_topics = {}
-
-    for final_score, c in scored:
-        if len(selected) >= target:
-            break
-        src = c["source"] or "unknown"
-        topic = (c["topic"] or "general").lower()
-        topic_cap = MAX_TOPIC_COUNT.get(topic)
-        if topic_cap is not None and seen_topics.get(topic, 0) >= topic_cap:
-            continue
-
-        src_count = seen_sources.get(src, 0)
-        topic_count = seen_topics.get(topic, 0)
-
-        penalty = 1.0
-        if src_count == 1:
-            penalty *= 0.5
-        elif src_count >= 2:
-            penalty *= 0.15
-        if topic_count == 1 and len(selected) >= 2:
-            penalty *= 0.6
-        elif topic_count >= 2:
-            penalty *= 0.2
-
-        adj = final_score * penalty
-        if adj > 0:
-            selected.append((adj, c))
-            seen_sources[src] = src_count + 1
-            seen_topics[topic] = topic_count + 1
-
-    selected.sort(key=lambda x: x[0], reverse=True)
-    return [c for _, c in selected[:target]]
+    selected = choose_diverse(candidates, target=target)
+    if len(selected) < min_articles:
+        return []
+    return selected
 
 
 def mark_published(article_ids):
