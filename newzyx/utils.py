@@ -63,11 +63,19 @@ _CONTENT_BLOCK = re.compile(
     r"arrested|sentenced|lawsuit|indicted|pedophile|deadly|manslaughter|"
     r"murder\w*|massacre|genocide|torture|"
     r"kill\w*|drugs|weed|bombs?|guns?|gambl\w*|"
-    r"elections?|campaigns?|\bgop\b|democrats?|republicans?|senate|parliament|"
     r"stocks|inflation|"
     r"kardashian|bachelorette|paparazzi|horoscope|astrology|"
     r"obituaries|obituary|funerals?|"
     r"divorces?|affairs?"
+    r")\b",
+    re.I,
+)
+# Factual election news can air. Fights, scandals, and conspiracies cannot.
+_POLITICS_BLOCK = re.compile(
+    r"\b("
+    r"impeach\w*|scandals?|insurrection|coup|assassination|"
+    r"extremists?|supremacists?|riots?|propaganda|"
+    r"stolen election|witch hunt|deep state"
     r")\b",
     re.I,
 )
@@ -87,7 +95,7 @@ def isBad(txt, mode=0):
     crude = inappropriate(txt)
     if crude:
         return crude
-    blocked = _CONTENT_BLOCK.search(txt or "")
+    blocked = _CONTENT_BLOCK.search(txt or "") or _POLITICS_BLOCK.search(txt or "")
     if blocked:
         return blocked.group(0)
     if mode == 0:

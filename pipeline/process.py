@@ -36,7 +36,8 @@ Science, sports, technology, health, and world events can all score 90+ when a 1
 
 HARD SCORE CAPS (override everything above):
   - Product launch, review, deal, "best of" list → max 35
-  - Political process/legislation horse-race (not outcome kids care about) → max 55
+  - A clear election result, or a simple explanation of how an election or vote works → 90-96 is allowed
+  - Partisan attacks, political scandals, impeachment fights, conspiracy claims, and opinion → max 45
   - Stock prices, corporate earnings, banking → max 25
   - Transfer gossip, manager quotes, and routine match previews → max 60
   - A real game result, record, championship, or athlete story kids would retell → 90-96 is allowed
