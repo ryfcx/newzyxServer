@@ -24,7 +24,7 @@ PODCAST_LANGUAGE = "en-us"
 # Apple Podcasts: "Education for Kids" is a subcategory under "Kids & Family".
 PODCAST_CATEGORY = "Kids & Family"
 PODCAST_SUBCATEGORY = "Education for Kids"
-PODCAST_EMAIL = "ryanngupta@gmail.com"
+PODCAST_EMAIL = "ryan@newzyx.com"
 # Show artwork (must exist under website/ and be uploaded to S3 with the site)
 PODCAST_ARTWORK_BASENAME = "NewzyxV2-Podcast.jpg"
 PODCAST_PHONE = "312-709-5982"
