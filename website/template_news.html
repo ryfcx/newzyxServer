@@ -432,6 +432,21 @@
   body.dark .edition-date { border-color: #444; color: #ccc; }
   body.dark .edition-date:hover { border-color: #29abe2; color: #fff; }
   body.dark .theme-toggle { border-color: #555; color: #777; }
+  .site-footer {
+    max-width: 860px;
+    margin: 40px auto 0;
+    padding: 24px 24px 40px;
+    border-top: 1px solid #ddd;
+    text-align: center;
+    font-family: "Source Sans 3", sans-serif;
+    font-size: 13px;
+    color: #666;
+  }
+  .site-footer p + p { margin-top: 8px; }
+  .site-footer a { color: #1a6d8e; text-decoration: none; }
+  .site-footer a:hover { color: #29abe2; }
+  body.dark .site-footer { border-top-color: #333; color: #888; }
+  body.dark .site-footer a { color: #7ec8e3; }
   body.dark .stats-row strong { color: #eee; }
   body.dark .empty-box { border-top-color: #333; }
 
@@ -786,5 +801,9 @@
     themeToggle.innerHTML = document.body.classList.contains('dark') ? '&#9788;' : '&#9790;';
   }
 </script>
+<footer class="site-footer">
+  <p>Product by Keel Labs LLC</p>
+  <p><a href="/about.html">About Keel Labs</a> · <a href="/terms.html">Terms and Conditions</a></p>
+</footer>
 </body>
 </html>

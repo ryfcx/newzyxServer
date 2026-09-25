@@ -75,7 +75,7 @@ def upload_files(file_list):
             extra["ContentType"] = content_type
         # Homepage and pointer files must not sit in CloudFront/browser cache
         # for a day — otherwise Latest keeps showing a stale episode.
-        if s3_key in ("index.html", "latest.json", "today.mp3", "feed.xml", "404.html"):
+        if s3_key in ("index.html", "latest.json", "today.mp3", "feed.xml", "404.html", "about.html", "terms.html"):
             extra["CacheControl"] = "no-cache, must-revalidate, max-age=0"
 
         try:

@@ -122,6 +122,8 @@ def run_daily_pipeline(t: int = 0) -> int:
                 "NewzyxV2-removebg.png",
                 "NewzyxV2Favicon.ico",
                 "404.html",
+                "about.html",
+                "terms.html",
             ):
                 extra_path = os.path.join(proj_web, extra_name)
                 if os.path.isfile(extra_path):

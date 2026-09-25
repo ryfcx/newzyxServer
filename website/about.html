@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About Keel Labs</title>
+<link rel="icon" href="/NewzyxV2Favicon.ico" type="image/x-icon">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&family=Source+Sans+3:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #f5f0eb; color: #1a1a1a; font-family: "Newsreader", Georgia, serif; font-size: 18px; line-height: 1.7; }
+  header { background: #1a1a1a; color: #fff; padding: 0 24px; }
+  .header-inner { max-width: 860px; margin: 0 auto; display: flex; align-items: center; min-height: 64px; gap: 12px; padding: 8px 0; }
+  .brand { --logo-h: 50px; --s: calc(var(--logo-h) / 285); display: block; width: calc(400 * var(--s)); height: var(--logo-h); overflow: hidden; flex-shrink: 0; text-decoration: none; }
+  .logo { width: calc(520 * var(--s)); height: calc(480 * var(--s)); max-width: none; margin-left: calc(-64 * var(--s)); margin-top: calc(-97 * var(--s)); display: block; filter: brightness(1.25); }
+  .masthead-title { font-size: 28px; font-weight: 700; letter-spacing: 2px; line-height: 1; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .nav-link, .theme-toggle { font-family: "Source Sans 3", sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; text-decoration: none; color: #fff; background: transparent; border: 1px solid #444; border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+  .nav-link:hover, .theme-toggle:hover { border-color: #29abe2; color: #29abe2; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 24px 16px; }
+  h1 { font-size: 40px; line-height: 1.15; margin-bottom: 12px; }
+  .kicker { font-family: "Source Sans 3", sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #1a6d8e; margin-bottom: 12px; }
+  p { margin: 0 0 16px; }
+  a { color: #1a6d8e; }
+  .site-footer { max-width: 860px; margin: 40px auto 0; padding: 24px 24px 40px; border-top: 1px solid #ddd; text-align: center; font-family: "Source Sans 3", sans-serif; font-size: 13px; color: #666; }
+  .site-footer p + p { margin-top: 8px; }
+  .site-footer a { color: #1a6d8e; text-decoration: none; }
+  body.dark { background: #111; color: #eee; }
+  body.dark a, body.dark .kicker, body.dark .site-footer a { color: #7ec8e3; }
+  body.dark .site-footer { border-top-color: #333; color: #888; }
+  @media (max-width: 700px) { h1 { font-size: 32px; } .brand { --logo-h: 40px; } }
+</style>
+</head>
+<body class="dark">
+<header>
+  <div class="header-inner">
+    <a class="brand" href="/">
+      <img src="/NewzyxV2-removebg.png" class="logo" alt="Newzyx">
+    </a>
+    <div class="masthead"><div class="masthead-title">NEWZYX</div></div>
+    <div class="header-right">
+      <a class="nav-link" href="/">Latest</a>
+      <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">&#9790;</button>
+    </div>
+  </div>
+</header>
+<main>
+  <p class="kicker">About</p>
+  <h1>Keel Labs</h1>
+  <p>Keel Labs LLC makes Newzyx, a daily news podcast and website for curious kids and teens.</p>
+  <p>Each episode takes a handful of real stories from science, technology, sports, health, and the wider world, and explains them in a short, clear show. The goal is to help listeners understand what happened and why it matters, without the noise of a full news broadcast.</p>
+  <p>Newzyx is a product by Keel Labs LLC. The show is meant for listeners about 10 to 16 years old, and it works well for families listening together.</p>
+  <p>Questions about the show or this site: <a href="mailto:ryanngupta@gmail.com">ryanngupta@gmail.com</a>.</p>
+</main>
+<footer class="site-footer">
+  <p>Product by Keel Labs LLC</p>
+  <p><a href="/about.html">About Keel Labs</a> · <a href="/terms.html">Terms and Conditions</a></p>
+</footer>
+<script>
+  const themeToggle = document.getElementById('themeToggle');
+  function updateToggleIcon() {
+    themeToggle.innerHTML = document.body.classList.contains('dark') ? '&#9788;' : '&#9790;';
+  }
+  if (localStorage.getItem('theme') === 'light') document.body.classList.remove('dark');
+  updateToggleIcon();
+  themeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    updateToggleIcon();
+  });
+</script>
+</body>
+</html>
