@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import atexit
 import os
+import re
 import signal
-from datetime import datetime
+import tempfile
+from datetime import datetime, timedelta
 
 from newzyx import utils, workspace
 from pipeline import db, collect, extract, process, episode, tts, upload, rss
@@ -44,7 +46,71 @@ def _step(num: int, fn):
     return fn()
 
 
-def run_daily_pipeline(t: int = 0) -> int:
+# After today's episode, fill holes from the last three weeks. Older archive gaps stay put.
+CATCHUP_LOOKBACK_DAYS = 21
+
+
+def published_episode_dates() -> set[str]:
+    """Dates that already have an episode in the live RSS feed."""
+    fd, path = tempfile.mkstemp(suffix=".xml")
+    os.close(fd)
+    try:
+        if not upload.download_object_if_exists("feed.xml", path):
+            return set()
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        return set(re.findall(r"episodes/(\d{4}-\d{2}-\d{2})/", text))
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def missing_days_ago(lookback: int = CATCHUP_LOOKBACK_DAYS) -> list[int]:
+    """Days-ago values for dates in the lookback window that are not in the feed. Oldest first."""
+    have = published_episode_dates()
+    missing = []
+    today = datetime.now()
+    for n in range(1, lookback + 1):
+        day = (today - timedelta(days=n)).strftime("%Y-%m-%d")
+        if day not in have:
+            missing.append(n)
+    missing.sort(reverse=True)
+    return missing
+
+
+def run_daily_pipeline(t: int = 0, fill_gaps: bool = True) -> int:
+    """Run one day, then catch up any missing days in the recent window.
+
+    Catch-up runs do not look for further gaps, so a backfill cannot loop.
+    """
+    code = _run_one_day(t)
+    if fill_gaps and t == 0:
+        _fill_recent_gaps()
+    return code
+
+
+def _fill_recent_gaps() -> None:
+    try:
+        gaps = missing_days_ago()
+    except Exception as e:
+        print(f"[newzyx] Could not check for missing episodes: {e}", flush=True)
+        return
+    if not gaps:
+        print(
+            f"[newzyx] No missing episodes in the last {CATCHUP_LOOKBACK_DAYS} days.",
+            flush=True,
+        )
+        return
+    dates = ", ".join(utils.ymd(n) for n in gaps)
+    print(f"[newzyx] Missing episodes: {dates}", flush=True)
+    for n in gaps:
+        print(f"[newzyx] Catch-up {utils.ymd(n)}", flush=True)
+        _run_one_day(n)
+
+
+def _run_one_day(t: int = 0) -> int:
     """Run the full pipeline once. Returns 0 on success (including skipped episode).
 
     ``t`` is days ago. The episode date and article news_dt both use that calendar
