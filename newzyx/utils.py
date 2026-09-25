@@ -55,52 +55,45 @@ def inappropriate(txt):
     return match.group(0) if match else ""
 
 
+# Whole words, so "skill", "classic", and "preview" are not treated as "kill" or "review".
+_CONTENT_BLOCK = re.compile(
+    r"\b("
+    r"menstruation|cocaine|alcohol|casino|violence|racist|nazis?|suicide|erotic|"
+    r"homicide|terrorists?|airstrike|missile|assault\w*|abuse|overdose|hostage|"
+    r"arrested|sentenced|lawsuit|indicted|pedophile|deadly|manslaughter|"
+    r"murder\w*|massacre|genocide|torture|"
+    r"kill\w*|drugs|weed|bombs?|guns?|gambl\w*|"
+    r"elections?|campaigns?|\bgop\b|democrats?|republicans?|senate|parliament|"
+    r"stocks|inflation|"
+    r"kardashian|bachelorette|paparazzi|horoscope|astrology|"
+    r"obituaries|obituary|funerals?|"
+    r"divorces?|affairs?"
+    r")\b",
+    re.I,
+)
+_COMMERCE_BLOCK = (
+    "gallery/", "interactive/", "video/", "/video", "audio/", "/audio",
+    "commentisfree", "thefilter", "you-solve-it", "/videos/", "/live/",
+    "/extra/", "/sounds/", "radio-and-tv",
+    "/photos/", "/photo/", "shop/", "diy/", "gma/", "entertainment/",
+    "watch/", "% off", "$ off", "discount", "promo code", "best deals",
+    "price drop", "buy now", "on sale", "cheapest", "best buy",
+    "shop now", "checkout", "sponsored", "affiliate", "paid partnership",
+    "advertisement", "iphone", "deals",
+)
+
+
 def isBad(txt, mode=0):
     crude = inappropriate(txt)
     if crude:
         return crude
-    filter1 = [
-        "menstruation", "cocaine", "alcohol", "casino", "violence", "racist",
-        " nazi ", "suicide", "erotic", "homicide", "terrorist", "airstrike",
-        "missile", "assault", "abuse", "overdose", "hostage", "arrested",
-        "sentenced", "lawsuit", "indicted", "pedophile", "deadly",
-        "manslaughter", "deals", "iphone",
-    ]
-    filter2 = [
-        "kill", "hate", "cutting", "flame", "bully", "drugs", "weed",
-        "bomb", "gun", "troll", "charges", "trial", "review", "stab", "gamble",
-    ]
-    filter3 = [
-        "election", "campaign", "gop", "democrat", "republican", "senate",
-        "parliament", "tax", "stocks", "markets", "interest rate", "inflation",
-        "fed", "bond", "attorneys",
-    ]
-    filter4 = [
-        "gallery/", "interactive/", "video/", "/video", "audio/", "/audio",
-        "commentisfree", "thefilter", "you-solve-it", "/videos/", "/live/",
-        "/extra/", "/cricket/", "/sounds/", "radio-and-tv",
-        "/football/european", "/football/premier-league", "BBC Sport app",
-        "/photos/", "/photo/", "shop/", "diy/", "gma/", "entertainment/",
-        "watch/",
-    ]
-    filter5 = [
-        "kardashian", "bachelor", "bachelorette", "reality tv", "coupon",
-        "dating", "celebrity", "paparazzi", "red carpet", "fashion week",
-        "skincare", "makeup tutorial", "horoscope", "astrology", "weight loss",
-        "diet pill", "crypto", "nft", "forex", "obituar", "funeral",
-        "wedding", "divorce", "affair", "pregnant", "baby bump",
-    ]
-    filter6 = [
-        "% off", "$ off", "discount", "promo code", "best deals",
-        "price drop", "buy now", "on sale", "cheapest", "best buy",
-        "shop now", "checkout", "airdrop", "upgrade your", "get one free",
-        "limited time", "flash sale", "unboxing", "hands-on review",
-        "which should you buy", "sponsored", "affiliate", "paid partnership",
-        "ad:", "advertisement",
-    ]
-    bad_words = filter1 + filter2 + filter3 + filter4 + filter5 + filter6 if mode == 0 else filter1
-    low = txt.lower()
-    return next((w for w in bad_words if w in low), "")
+    blocked = _CONTENT_BLOCK.search(txt or "")
+    if blocked:
+        return blocked.group(0)
+    if mode == 0:
+        low = (txt or "").lower()
+        return next((w for w in _COMMERCE_BLOCK if w in low), "")
+    return ""
 
 
 AD_DOMAINS = [

@@ -45,6 +45,18 @@ RSS_SOURCES = [
     ("nbc-news", "science", "https://feeds.nbcnews.com/nbcnews/public/science"),
     ("abc-news", "general", "https://abcnews.go.com/abcnews/topstories"),
     ("abc-news", "technology", "https://abcnews.go.com/abcnews/technologyheadlines"),
+    ("npr", "science", "https://feeds.npr.org/1007/rss.xml"),
+    ("npr", "technology", "https://feeds.npr.org/1019/rss.xml"),
+    ("npr", "world", "https://feeds.npr.org/1001/rss.xml"),
+    ("nasa", "science", "https://www.nasa.gov/rss/dyn/breaking_news.rss"),
+    ("smithsonian", "science", "https://www.smithsonianmag.com/rss/science-nature/"),
+    ("pbs", "world", "https://www.pbs.org/newshour/feeds/rss/headlines"),
+    ("cbs-news", "science", "https://www.cbsnews.com/latest/rss/science"),
+    ("cbs-news", "technology", "https://www.cbsnews.com/latest/rss/technology"),
+    ("cbs-news", "world", "https://www.cbsnews.com/latest/rss/world"),
+    ("new-york-times", "science", "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"),
+    ("new-york-times", "technology", "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"),
+    ("washington-post", "general", "https://feeds.washingtonpost.com/rss/national"),
 ]
 
 _BBC_TIME_PREFIX = re.compile(

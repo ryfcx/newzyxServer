@@ -213,7 +213,8 @@ MAX_BUCKET = {
     "health": 1,
     "history": 1,
 }
-MAX_SOURCE_COUNT = 2
+MAX_SOURCE_COUNT = 1
+MIN_SOURCES = 4
 # Pull sports that the scorer capped below the normal 90 line.
 POOL_MIN_SCORE = 60
 OTHER_MIN_SCORE = 80
@@ -274,9 +275,9 @@ def choose_diverse(candidates, target=6):
             str(c[key] or "")
             for key in ("title", "summary", "pod_script", "pod_question", "pod_answer")
         )
-        crude = utils.inappropriate(spoken)
-        if crude:
-            print(f"  Skip inappropriate ({crude}): {(c['title'] or '')[:60]}")
+        blocked = utils.isBad(spoken, 1)
+        if blocked:
+            print(f"  Skip filtered ({blocked}): {(c['title'] or '')[:60]}")
             return False
         selected.append(c)
         selected_ids.add(aid)
@@ -304,26 +305,24 @@ def choose_diverse(candidates, target=6):
 
     for bucket in FIRST_BUCKETS:
         floor = POOL_MIN_SCORE if bucket == "sports" else OTHER_MIN_SCORE
-        if not best_in(bucket, MAX_SOURCE_COUNT, floor, MAX_BUCKET):
-            # Keep the category even if that outlet already has two stories.
-            best_in(bucket, MAX_SOURCE_COUNT + 1, floor, MAX_BUCKET)
+        best_in(bucket, MAX_SOURCE_COUNT, floor, MAX_BUCKET)
 
+    # One story per outlet until at least four sources are seated.
     fill(MAX_SOURCE_COUNT, MAX_BUCKET, OTHER_MIN_SCORE)
+    if len({(c["source"] or "unknown") for c in selected}) < MIN_SOURCES:
+        relaxed = {bucket: 2 for bucket in MAX_BUCKET}
+        relaxed["sports"] = 2
+        relaxed["nature"] = 1
+        fill(MAX_SOURCE_COUNT, relaxed, POOL_MIN_SCORE)
 
-    # Still short: allow a second science or nature story, and a third outlet story.
-    if len(selected) < target:
+    # Fill the remaining seats only after four outlets are in. Never a third story from one outlet.
+    if len(selected) < target and len({(c["source"] or "unknown") for c in selected}) >= MIN_SOURCES:
         wider = dict(MAX_BUCKET)
         wider["science"] = 2
-        wider["nature"] = 2
-        wider["world"] = 3
+        wider["nature"] = 1
+        wider["world"] = 2
         wider["technology"] = 2
-        fill(MAX_SOURCE_COUNT + 1, wider, OTHER_MIN_SCORE)
-
-    # Thin news day: still publish, without letting one outlet take the whole show.
-    if len(selected) < 4:
-        last = {bucket: 3 for bucket in MAX_BUCKET}
-        last["sports"] = 2
-        fill(MAX_SOURCE_COUNT + 1, last, POOL_MIN_SCORE)
+        fill(2, wider, OTHER_MIN_SCORE)
 
     return selected[:target]
 
