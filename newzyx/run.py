@@ -190,6 +190,7 @@ def _run_one_day(t: int = 0) -> int:
                 "404.html",
                 "about.html",
                 "terms.html",
+                "company.html",
             ):
                 extra_path = os.path.join(proj_web, extra_name)
                 if os.path.isfile(extra_path):
