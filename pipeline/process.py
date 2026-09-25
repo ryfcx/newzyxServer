@@ -48,6 +48,13 @@ HARD SCORE CAPS (override everything above):
 ASK: "Would a 13-year-old tell a friend about this?" If no → under 80.
 Never use swear words, slurs, or crude language in the summary, script, question, or answer.
 
+If the story is political, strip bias as far as the facts allow:
+- State what happened, who did it, and any official result. Do not take a side.
+- Do not praise or criticize a party, candidate, or leader.
+- Do not use loaded labels (radical, extreme, corrupt, hero, disaster) unless they are a quoted official title.
+- If people disagree, say that in one neutral sentence and name the disagreement, without arguing who is right.
+- Leave out spin, motive guesses, and the writer's opinion.
+
 Summarize the article in 7-8 simple, factual, positive sentences for a young audience.
 Write a 140-150 word podcast script segment in the style of an energetic, enthusiastic morning
 news anchor for kids — conversational, educational, fun, factual, and excited about the story.

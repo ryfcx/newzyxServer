@@ -107,6 +107,7 @@ def _polish_segment(text, kind="story"):
                         f"You are {HOST_NAME}, a high-energy morning news host for kids aged 12-16. "
                         "You're excited, curious, and upbeat, but you speak in a natural conversational "
                         "flow like a real radio host. Keep it clear and factual. "
+                        "On politics, stay neutral: no side, no praise, no blame, no loaded labels. "
                         f"Do NOT say your name ({HOST_NAME})."
                     ),
                 },
@@ -331,6 +332,7 @@ CRITICAL rules:
 - Do NOT use outside knowledge or details that are not in the story text.
 - Prefer concrete names, numbers, places, or clear facts that were actually spoken.
 - Keep questions kid-friendly and answers short (a few words to one short sentence).
+- If a story is political, ask for a fact (who won, what office, what the vote was), not who was right.
 - Return exactly {len(topics)} items, in the same order as the stories.
 
 {numbered}
