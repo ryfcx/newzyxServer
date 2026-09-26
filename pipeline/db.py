@@ -247,6 +247,29 @@ def story_bucket(topic, title):
     return "world"
 
 
+# Generic headline words, not people or named events.
+_SUBJECT_STOP = frozenset(
+    """
+    the a an and or of to for in on at by from with as into over after before
+    how why what when where who which this that these those their they them
+    new old first last next more most other another
+    says said say says
+    president speaker senator minister prime house white senate congress
+    united states america american world news today report reports sources
+    monday tuesday wednesday thursday friday saturday sunday
+    january february march april may june july august september october november december
+    scientists researchers study researchers people year years week weeks
+    """.split()
+)
+
+
+def story_subjects(article):
+    """Capitalized names in the title and summary, so one person cannot fill two stories."""
+    blob = f"{article['title'] or ''}. {article['summary'] or ''}"
+    tokens = re.findall(r"\b[A-Z][a-z]{2,}\b", blob)
+    return {token.lower() for token in tokens if token.lower() not in _SUBJECT_STOP}
+
+
 def choose_diverse(candidates, target=6):
     """
     Fill an episode with different categories and outlets.
@@ -257,6 +280,7 @@ def choose_diverse(candidates, target=6):
     selected_ids = set()
     seen_sources = {}
     seen_buckets = {}
+    seen_subjects = set()
 
     def try_add(c, source_cap, bucket_caps):
         if len(selected) >= target:
@@ -279,10 +303,17 @@ def choose_diverse(candidates, target=6):
         if blocked:
             print(f"  Skip filtered ({blocked}): {(c['title'] or '')[:60]}")
             return False
+        subjects = story_subjects(c)
+        overlap = subjects & seen_subjects
+        if overlap:
+            named = ", ".join(sorted(overlap)[:3])
+            print(f"  Skip related ({named}): {(c['title'] or '')[:60]}")
+            return False
         selected.append(c)
         selected_ids.add(aid)
         seen_sources[src] = seen_sources.get(src, 0) + 1
         seen_buckets[bucket] = seen_buckets.get(bucket, 0) + 1
+        seen_subjects.update(subjects)
         return True
 
     def best_in(bucket, source_cap, min_score, bucket_caps):
