@@ -316,6 +316,16 @@
     .brand { --logo-h: 40px; }
     .player-box { flex-direction: column; align-items: flex-start; }
   }
+  .platform-links {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .platform-links a { display: inline-flex; line-height: 0; }
+  .platform-links img { height: 44px; width: auto; display: block; }
+  .platform-links .spotify { height: 36px; }
 </style>
 </head>
 <body class="dark" data-episode="">
@@ -345,6 +355,14 @@
   <div class="player-box">
     <div class="listen-badge">Listen Now</div>
     <audio controls src="today.mp3">Your browser does not support the audio element.</audio>
+  </div>
+  <div class="platform-links">
+    <a href="https://podcasts.apple.com/us/podcast/daily-news-podcast-for-kids-newzyx/id1850630872" target="_blank" rel="noopener noreferrer">
+      <img src="/badges/apple-podcasts.png" alt="Listen on Apple Podcasts">
+    </a>
+    <a href="https://open.spotify.com/show/35mzp5gyIShLnJ4YN9lpKC" target="_blank" rel="noopener noreferrer">
+      <img class="spotify" src="/badges/spotify.png" alt="Listen on Spotify">
+    </a>
   </div>
 </div>
 
