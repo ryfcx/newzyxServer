@@ -315,16 +315,46 @@
     .brand { --logo-h: 40px; }
     .player-box { flex-direction: column; align-items: flex-start; }
   }
+  .player-main {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .platform-links {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 8px;
     flex-wrap: wrap;
-    margin-top: 12px;
   }
-  .platform-links a { display: inline-flex; line-height: 0; }
-  .platform-links img { height: 44px; width: auto; display: block; }
-  .platform-links .spotify { height: 36px; }
+  .platform-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px 0 8px;
+    border: 1px solid #d5d5d5;
+    border-radius: 8px;
+    background: transparent;
+    color: #1a1a1a;
+    text-decoration: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Source Sans 3", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    line-height: 1;
+  }
+  .platform-btn img {
+    width: 22px;
+    height: 22px;
+    display: block;
+    flex-shrink: 0;
+  }
+  .platform-btn:hover { border-color: #29abe2; color: #1a6d8e; }
+  body.dark .platform-btn { color: #eee; border-color: #3a3a3a; }
+  body.dark .platform-btn:hover { border-color: #29abe2; color: #fff; }
 </style>
 </head>
 <body class="dark" data-episode="">
@@ -353,15 +383,19 @@
 <div class="player-section">
   <div class="player-box">
     <div class="listen-badge">Listen Now</div>
-    <audio controls src="today.mp3">Your browser does not support the audio element.</audio>
-  </div>
-  <div class="platform-links">
-    <a href="https://podcasts.apple.com/us/podcast/daily-news-podcast-for-kids-newzyx/id1850630872" target="_blank" rel="noopener noreferrer">
-      <img src="/badges/apple-podcasts.png" alt="Listen on Apple Podcasts">
-    </a>
-    <a href="https://open.spotify.com/show/35mzp5gyIShLnJ4YN9lpKC" target="_blank" rel="noopener noreferrer">
-      <img class="spotify" src="/badges/spotify.png" alt="Listen on Spotify">
-    </a>
+    <div class="player-main">
+      <audio controls src="today.mp3">Your browser does not support the audio element.</audio>
+      <div class="platform-links">
+        <a class="platform-btn" href="https://podcasts.apple.com/us/podcast/daily-news-podcast-for-kids-newzyx/id1850630872" target="_blank" rel="noopener noreferrer">
+          <img src="/badges/apple-podcasts.png" alt="">
+          <span>Apple Podcasts</span>
+        </a>
+        <a class="platform-btn" href="https://open.spotify.com/show/35mzp5gyIShLnJ4YN9lpKC" target="_blank" rel="noopener noreferrer">
+          <img src="/badges/spotify.png" alt="">
+          <span>Spotify</span>
+        </a>
+      </div>
+    </div>
   </div>
 </div>
 
