@@ -318,29 +318,13 @@
   .platform-links {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    flex-shrink: 0;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 12px;
   }
-  .platform-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 4px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    text-decoration: none;
-    border: none;
-    box-shadow: none;
-  }
-  .platform-btn svg { display: block; }
-  .platform-btn.apple { background: #872EC4; }
-  .platform-btn.spotify { background: #1DB954; }
-  .platform-btn:hover { filter: brightness(1.08); }
-  @media (max-width: 700px) {
-    .platform-links { margin-left: 0; }
-  }
+  .platform-links a { display: inline-flex; line-height: 0; }
+  .platform-links img { height: 44px; width: auto; display: block; }
+  .platform-links .spotify { height: 36px; }
 </style>
 </head>
 <body class="dark" data-episode="">
@@ -370,23 +354,14 @@
   <div class="player-box">
     <div class="listen-badge">Listen Now</div>
     <audio controls src="today.mp3">Your browser does not support the audio element.</audio>
-    <div class="platform-links">
-      <a class="platform-btn apple" href="https://podcasts.apple.com/us/podcast/daily-news-podcast-for-kids-newzyx/id1850630872" target="_blank" rel="noopener noreferrer" aria-label="Listen on Apple Podcasts">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="1.4" opacity="0.45"/>
-          <circle cx="12" cy="12" r="6" fill="none" stroke="#fff" stroke-width="1.4" opacity="0.8"/>
-          <circle cx="12" cy="10.1" r="1.7" fill="#fff"/>
-          <path d="M8.3 16.7c.8-2.1 2.1-3.1 3.7-3.1s2.9 1 3.7 3.1" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-      </a>
-      <a class="platform-btn spotify" href="https://open.spotify.com/show/35mzp5gyIShLnJ4YN9lpKC" target="_blank" rel="noopener noreferrer" aria-label="Listen on Spotify">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <path d="M6 9.6c4-1.3 8.4-.7 11.6 1.3" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M7.1 12.7c3.1-1 6.5-.5 9 1.1" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
-          <path d="M8.2 15.6c2.2-.7 4.6-.3 6.4.9" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-      </a>
-    </div>
+  </div>
+  <div class="platform-links">
+    <a href="https://podcasts.apple.com/us/podcast/daily-news-podcast-for-kids-newzyx/id1850630872" target="_blank" rel="noopener noreferrer">
+      <img src="/badges/apple-podcasts.png" alt="Listen on Apple Podcasts">
+    </a>
+    <a href="https://open.spotify.com/show/35mzp5gyIShLnJ4YN9lpKC" target="_blank" rel="noopener noreferrer">
+      <img class="spotify" src="/badges/spotify.png" alt="Listen on Spotify">
+    </a>
   </div>
 </div>
 
