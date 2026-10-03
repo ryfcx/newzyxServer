@@ -191,6 +191,8 @@ def _run_one_day(t: int = 0) -> int:
                 "about.html",
                 "terms.html",
                 "privacy.html",
+                "shareplate/index.html",
+                "shareplate/support/index.html",
                 "badges/apple-podcasts.png",
                 "badges/spotify.png",
                 "badges/soundcarrot.png",
