@@ -190,6 +190,7 @@ def _run_one_day(t: int = 0) -> int:
                 "404.html",
                 "about.html",
                 "terms.html",
+                "privacy.html",
                 "badges/apple-podcasts.png",
                 "badges/spotify.png",
                 "badges/soundcarrot.png",
