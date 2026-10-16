@@ -8,7 +8,7 @@ from pipeline import db
 
 # Literal markers used to split the polished script into separate TTS segments
 # (stitched with real silence / music beds by pydub in pipeline/tts.py).
-HOST_NAME = "Zara"
+HOST_NAME = "Emma"
 TOPIC_SPLIT_MARKER = "@@TOPIC@@"  # between individual news stories
 BRIDGE_SPLIT_MARKER = "@@BRIDGE@@"  # before the quiz lead-in
 QA_SPLIT_MARKER = "@@QASPLIT@@"  # between the news portion and the quiz portion

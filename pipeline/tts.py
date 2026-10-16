@@ -10,9 +10,9 @@ import time
 from newzyx import config, workspace
 
 # Keep in sync with pipeline.episode.HOST_NAME (avoid importing episode here).
-HOST_NAME = "Zara"
+HOST_NAME = "Emma"
 
-# Brand spelling only — do NOT respell the host name; that made "Zara" unintelligible.
+# Brand spelling only — do NOT respell the host name; that made the previous host name unintelligible.
 _PRONOUNCE_SUBS = [
     (re.compile(r"\bnewzyx\b", re.IGNORECASE), "New-zix"),
 ]
