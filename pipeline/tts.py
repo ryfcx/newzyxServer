@@ -89,6 +89,7 @@ OUTRO_GAP_MS = 550
 _AUDIO_DIR = os.path.join(config.PROJECT_ROOT, "audio")
 _INTRO_MUSIC_PATH = os.path.join(_AUDIO_DIR, "intro_music.mp3")
 _TOPIC_STING_PATH = os.path.join(_AUDIO_DIR, "topic_transition.mp3")
+_QUIZ_TIMER_PATH = os.path.join(_AUDIO_DIR, "quiz_timer.wav")
 
 # Energetic but steady: higher stability + lower style = fewer weird mid-word pauses.
 # Speed stays quick without the stop-start feel of high style exaggeration.
@@ -314,6 +315,28 @@ def _append_sting(segments, sting, voice_ref, before_ms=None, after_ms=None):
     segments.append(AudioSegment.silent(duration=after_ms))
 
 
+def _quiz_answer_timer(voice_ref):
+    """Use the recorded timer for the existing three-second thinking pause."""
+    rate = voice_ref.frame_rate
+    channels = voice_ref.channels
+    pause = AudioSegment.silent(
+        duration=QA_ANSWER_GAP_MS, frame_rate=rate
+    ).set_channels(channels)
+    try:
+        timer = AudioSegment.from_file(_QUIZ_TIMER_PATH, format="wav")
+        timer = timer.set_frame_rate(rate).set_channels(channels)
+        timer = timer[:QA_ANSWER_GAP_MS]
+        if not len(timer) or timer.dBFS == float("-inf"):
+            raise ValueError("quiz timer recording is empty or silent")
+        # Keep the recording below speech volume, with headroom for any peaks.
+        gain = min(-22.0 - timer.dBFS, -10.0 - timer.max_dBFS)
+        timer = timer.apply_gain(gain).fade_in(5).fade_out(20)
+        return pause.overlay(timer)
+    except (OSError, ValueError) as exc:
+        print(f"  Warning: could not load quiz timer ({exc}); using silence")
+        return pause
+
+
 def _append_intro(segments, client, script_parts):
     """
     Speak the full intro as one continuous clip so greeting/name/date flow
@@ -393,7 +416,7 @@ def tts(script_parts, t=0):
 
     if qa_pairs:
         segments.append(AudioSegment.silent(duration=QA_GAP_MS))
-        answer_gap = AudioSegment.silent(duration=QA_ANSWER_GAP_MS)
+        answer_gap = _quiz_answer_timer(ref)
         pair_gap = AudioSegment.silent(duration=QA_PAIR_GAP_MS)
         for i, (question, answer) in enumerate(qa_pairs):
             if i > 0:
