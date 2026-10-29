@@ -82,7 +82,7 @@ TOPIC_GAP_BEFORE_STING_MS = 280
 TOPIC_GAP_AFTER_STING_MS = 220
 BRIDGE_GAP_MS = 550
 QA_GAP_MS = 1000
-QA_ANSWER_GAP_MS = 3000
+QA_ANSWER_GAP_MS = 5000
 QA_PAIR_GAP_MS = 550
 OUTRO_GAP_MS = 550
 
@@ -275,8 +275,18 @@ def _synthesize(client, text):
     raise RuntimeError(f"TTS failed after 3 retries: {last_err}") from last_err
 
 
-def _load_bed(path, target_dbfs=-18.0):
-    """Load a music bed/sting and normalize loudness so short effects stay audible."""
+def _quiet_effect(effect, voice_ref, below_voice_db):
+    """Keep effects below narration, with peak headroom to prevent clipping."""
+    voice_level = voice_ref.dBFS if voice_ref is not None else -18.0
+    if voice_level == float("-inf"):
+        voice_level = -18.0
+    target = min(-24.0, voice_level - below_voice_db)
+    gain = min(target - effect.dBFS, -10.0 - effect.max_dBFS)
+    return effect.apply_gain(gain)
+
+
+def _load_bed(path, voice_ref=None, below_voice_db=12.0):
+    """Load music or a transition and balance it against the narration."""
     if not path or not os.path.isfile(path) or os.path.getsize(path) == 0:
         return None
     try:
@@ -286,7 +296,7 @@ def _load_bed(path, target_dbfs=-18.0):
         return None
     if bed.dBFS == float("-inf"):
         return None
-    bed = bed.apply_gain(target_dbfs - bed.dBFS)
+    bed = _quiet_effect(bed, voice_ref, below_voice_db)
     return bed
 
 
@@ -316,7 +326,7 @@ def _append_sting(segments, sting, voice_ref, before_ms=None, after_ms=None):
 
 
 def _quiz_answer_timer(voice_ref):
-    """Use the recorded timer for the existing three-second thinking pause."""
+    """Use the recorded timer for the five-second thinking pause."""
     rate = voice_ref.frame_rate
     channels = voice_ref.channels
     pause = AudioSegment.silent(
@@ -328,9 +338,7 @@ def _quiz_answer_timer(voice_ref):
         timer = timer[:QA_ANSWER_GAP_MS]
         if not len(timer) or timer.dBFS == float("-inf"):
             raise ValueError("quiz timer recording is empty or silent")
-        # Keep the recording below speech volume, with headroom for any peaks.
-        gain = min(-22.0 - timer.dBFS, -10.0 - timer.max_dBFS)
-        timer = timer.apply_gain(gain).fade_in(5).fade_out(20)
+        timer = _quiet_effect(timer, voice_ref, 16.0).fade_in(5).fade_out(20)
         return pause.overlay(timer)
     except (OSError, ValueError) as exc:
         print(f"  Warning: could not load quiz timer ({exc}); using silence")
@@ -350,9 +358,9 @@ def _append_intro(segments, client, script_parts):
     ]
     intro_text = " ".join(p for p in pieces if p) or (script_parts.get("intro") or "").strip()
 
-    intro_music = _load_bed(_INTRO_MUSIC_PATH, target_dbfs=-16.0)
     intro_audio = _synthesize(client, intro_text) if intro_text else AudioSegment.silent(duration=1)
     ref = intro_audio
+    intro_music = _load_bed(_INTRO_MUSIC_PATH, ref)
 
     if intro_music is not None:
         music = _match_voice(intro_music.fade_out(600), ref)
@@ -390,10 +398,10 @@ def tts(script_parts, t=0):
         topics = []
 
     segments = []
-    topic_sting = _load_bed(_TOPIC_STING_PATH, target_dbfs=-12.0)
+    ref = _append_intro(segments, client, script_parts)
+    topic_sting = _load_bed(_TOPIC_STING_PATH, ref)
     if topic_sting is None:
         print("  Warning: topic transition sting missing; using silence between stories")
-    ref = _append_intro(segments, client, script_parts)
 
     for i, topic in enumerate(topics):
         topic_audio = _synthesize(client, topic)
@@ -434,7 +442,7 @@ def tts(script_parts, t=0):
             after_ms=TOPIC_GAP_AFTER_STING_MS,
         )
         segments.append(_synthesize(client, outro))
-        intro_music = _load_bed(_INTRO_MUSIC_PATH, target_dbfs=-18.0)
+        intro_music = _load_bed(_INTRO_MUSIC_PATH, ref, below_voice_db=14.0)
         if intro_music is not None:
             bed = _match_voice(intro_music.fade_in(200).fade_out(800), ref)
             segments.append(AudioSegment.silent(duration=250))
